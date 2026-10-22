@@ -1,0 +1,49 @@
+{
+  "model_type": "LogisticRegression (Baseline) with Random Forest comparison",
+  "prototype_notice": "Trained on synthetic cognitive-decay learning trajectory dataset for prototype demonstration.",
+  "dataset_source": "Synthetically generated student learning logs (3,000 samples) modeling Ebbinghaus retention decay, question difficulty, and confidence calibration.",
+  "feature_names": [
+    "recent_accuracy",
+    "previous_correct",
+    "confidence_rating",
+    "hours_since_last_attempt",
+    "attempts_count",
+    "difficulty"
+  ],
+  "scaler": {
+    "mean": [0.582, 0.589, 3.32, 35.8, 4.88, 0.55],
+    "scale": [0.245, 0.492, 1.15, 34.2, 3.65, 0.18]
+  },
+  "logistic_regression": {
+    "intercept": 0.342,
+    "coefficients": [0.924, 0.381, 0.288, -0.422, 0.208, -0.854],
+    "metrics": {
+      "accuracy": 0.814,
+      "precision": 0.825,
+      "recall": 0.841,
+      "f1": 0.833,
+      "roc_auc": 0.879
+    }
+  },
+  "random_forest": {
+    "feature_importances": {
+      "recent_accuracy": 0.385,
+      "difficulty": 0.245,
+      "hours_since_last_attempt": 0.165,
+      "previous_correct": 0.082,
+      "confidence_rating": 0.071,
+      "attempts_count": 0.052
+    },
+    "metrics": {
+      "accuracy": 0.828,
+      "roc_auc": 0.892
+    }
+  },
+  "training_samples": 2400,
+  "test_samples": 600,
+  "thresholds": {
+    "low_recall_risk": 0.45,
+    "moderate_stability": 0.70,
+    "high_mastery": 0.85
+  }
+}
