@@ -1,6 +1,7 @@
-import { StudyAttempts, Questions, StudySessions, RevisionTasks, Users } from '../models/repositories.js';
+import { StudyAttempts, Questions, StudySessions, RevisionTasks, Users, FlashcardDecks } from '../models/repositories.js';
 import { generatePersonalizedRecommendations } from '../services/recommendationEngine.js';
 import { getModelMetadata } from '../services/mlService.js';
+import { getDueReviewsSummary } from '../services/spacedRepetitionService.js';
 
 function calculateStreak(attempts) {
   if (!attempts || attempts.length === 0) return 0;
@@ -50,14 +51,26 @@ export async function getAnalyticsOverview(req, res) {
 
     const streak = calculateStreak(attempts);
 
+    // Today's stats
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayAttempts = attempts.filter((a) => a.timestamp && a.timestamp.startsWith(todayStr));
+    const todayStudySeconds = todayAttempts.reduce((acc, a) => acc + (a.timeTakenSeconds || 10), 0);
+    const todayStudyMinutes = Math.round(todayStudySeconds / 60);
+
+    const dailyTarget = user?.studyGoals?.dailyTargetQuestions || 15;
+    const dailyGoalProgress = Math.min(100, Math.round((todayAttempts.length / dailyTarget) * 100));
+
     // Topic stats
     const topicMap = {};
     attempts.forEach((a) => {
       const t = a.topic || 'General';
-      if (!topicMap[t]) topicMap[t] = { topic: t, total: 0, correct: 0, confidences: [] };
+      if (!topicMap[t]) topicMap[t] = { topic: t, total: 0, correct: 0, confidences: [], lastTimestamp: a.timestamp };
       topicMap[t].total++;
       if (a.isCorrect) topicMap[t].correct++;
       if (a.confidenceRating) topicMap[t].confidences.push(a.confidenceRating);
+      if (new Date(a.timestamp) > new Date(topicMap[t].lastTimestamp)) {
+        topicMap[t].lastTimestamp = a.timestamp;
+      }
     });
 
     const topicsPracticedCount = Object.keys(topicMap).length;
@@ -79,16 +92,31 @@ export async function getAnalyticsOverview(req, res) {
       });
     }
 
-    // Topics mastery array
+    // Topics mastery array: strict, reproducible calculation without fake metrics
     const topicMastery = Object.values(topicMap).map((stat) => {
       const accuracy = Math.round((stat.correct / stat.total) * 100);
       const avgConfidence = stat.confidences.length > 0
         ? Math.round((stat.confidences.reduce((a, b) => a + b, 0) / stat.confidences.length) * 10) / 10
         : 3.0;
 
-      let level = 'Beginner';
-      if (stat.total >= 4 && accuracy >= 80) level = 'Mastered';
-      else if (stat.total >= 2 && accuracy >= 60) level = 'Intermediate';
+      // Section 9 rule: If there is insufficient evidence, display "Not enough practice data"
+      if (stat.total < 3) {
+        return {
+          topic: stat.topic,
+          totalAttempts: stat.total,
+          accuracy,
+          avgConfidence,
+          level: 'Not enough practice data',
+          status: 'insufficient_data',
+          needsRevision: true,
+          explanation: `Only ${stat.total} attempt(s) recorded. Complete at least 3 practice questions to establish confidence.`,
+        };
+      }
+
+      let level = 'Needs Practice';
+      if (accuracy >= 85 && avgConfidence >= 3.8) level = 'Mastered';
+      else if (accuracy >= 70 && avgConfidence >= 3.0) level = 'Proficient';
+      else if (accuracy >= 50) level = 'Developing';
 
       return {
         topic: stat.topic,
@@ -96,21 +124,70 @@ export async function getAnalyticsOverview(req, res) {
         accuracy,
         avgConfidence,
         level,
-        needsRevision: accuracy < 65 || stat.total < 2,
+        status: level === 'Mastered' ? 'mastered' : level === 'Proficient' ? 'proficient' : 'needs_work',
+        needsRevision: accuracy < 65,
+        explanation: `Based on ${stat.total} attempts with ${accuracy}% accuracy and ${avgConfidence}/5 confidence.`,
       };
     });
 
     const topicsNeedingRevision = topicMastery.filter((t) => t.needsRevision).length;
 
-    // Recommendations powered by ML
+    // Real SRS reviews summary
+    const srsSummary = await getDueReviewsSummary(userId);
+
+    // Recommendations powered by real data
     const recommendations = await generatePersonalizedRecommendations(userId);
 
-    // Difficult questions (incorrect >= 1)
-    const difficultQuestionsRaw = attempts.filter((a) => !a.isCorrect);
-    const questionCounts = {};
-    difficultQuestionsRaw.forEach((a) => {
-      questionCounts[a.questionId] = (questionCounts[a.questionId] || 0) + 1;
-    });
+    // Concrete next step recommendation
+    let nextStepRecommendation = {
+      title: 'Review Due Cards',
+      actionText: 'Start Review',
+      actionLink: '/study',
+      reason: 'Regular spaced repetition solidifies long-term memory.',
+    };
+
+    if (srsSummary.counts.overdue > 0) {
+      nextStepRecommendation = {
+        title: `${srsSummary.counts.overdue} Overdue Flashcard${srsSummary.counts.overdue > 1 ? 's' : ''}`,
+        actionText: 'Review Overdue Cards',
+        actionLink: '/study?filter=due',
+        reason: 'Review these first to arrest memory decay along the Ebbinghaus forgetting curve.',
+        badge: 'Critical',
+      };
+    } else if (srsSummary.counts.dueToday > 0) {
+      nextStepRecommendation = {
+        title: `${srsSummary.counts.dueToday} Cards Due Today`,
+        actionText: 'Start Today\'s Review',
+        actionLink: '/study?filter=due',
+        reason: 'Optimal spaced repetition intervals calculated for maximum retention.',
+        badge: 'Recommended',
+      };
+    } else if (topicsNeedingRevision > 0) {
+      const weakTopic = topicMastery.find((t) => t.needsRevision)?.topic || 'Operating Systems';
+      nextStepRecommendation = {
+        title: `Strengthen Concept: ${weakTopic}`,
+        actionText: 'Take Practice Quiz',
+        actionLink: `/practice?topic=${encodeURIComponent(weakTopic)}`,
+        reason: `Your recent recall accuracy was under 65% in ${weakTopic}.`,
+        badge: 'Targeted Practice',
+      };
+    } else if (srsSummary.counts.newCards > 0) {
+      nextStepRecommendation = {
+        title: `${srsSummary.counts.newCards} New Cards Waiting`,
+        actionText: 'Learn New Cards',
+        actionLink: '/study?filter=new',
+        reason: 'Your review backlog is clear. Great time to acquire new concepts!',
+        badge: 'New Learning',
+      };
+    } else {
+      nextStepRecommendation = {
+        title: 'All Caught Up!',
+        actionText: 'Explore My Materials',
+        actionLink: '/materials',
+        reason: 'You have completed all scheduled reviews for today. Add new study sets or take a mock test.',
+        badge: 'Completed',
+      };
+    }
 
     res.json({
       summary: {
@@ -119,10 +196,16 @@ export async function getAnalyticsOverview(req, res) {
         topicsPracticedCount,
         streak,
         topicsNeedingRevision,
+        todayAttemptsCount: todayAttempts.length,
+        todayStudyMinutes,
+        dailyTarget,
+        dailyGoalProgress,
         studyGoals: user?.studyGoals,
       },
       activityTrend: last7Days,
       topicMastery,
+      srs: srsSummary,
+      nextStepRecommendation,
       recommendations,
       sessionsCount: sessions.length,
     });

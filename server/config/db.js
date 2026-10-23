@@ -18,6 +18,9 @@ let memoryStore = {
   attempts: [],
   sessions: [],
   tasks: [],
+  reviewStates: [],
+  reviewEvents: [],
+  concepts: [],
 };
 
 // Ensure data directory exists

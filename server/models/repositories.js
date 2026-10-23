@@ -7,6 +7,9 @@ import {
   StudyAttemptModel,
   StudySessionModel,
   RevisionTaskModel,
+  ReviewStateModel,
+  ReviewEventModel,
+  ConceptModel,
 } from './schemas.js';
 
 function generateId() {
@@ -156,4 +159,8 @@ export const Questions = new StoreRepository('questions', QuestionModel);
 export const StudyAttempts = new StoreRepository('attempts', StudyAttemptModel);
 export const StudySessions = new StoreRepository('sessions', StudySessionModel);
 export const RevisionTasks = new StoreRepository('tasks', RevisionTaskModel);
+export const ReviewStates = new StoreRepository('reviewStates', ReviewStateModel);
+export const ReviewEvents = new StoreRepository('reviewEvents', ReviewEventModel);
+export const Concepts = new StoreRepository('concepts', ConceptModel);
+
 

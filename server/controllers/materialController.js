@@ -1,14 +1,157 @@
 import pdfParse from 'pdf-parse';
+import Tesseract from 'tesseract.js';
 import { StudyMaterials, FlashcardDecks, Questions, StudyAttempts, RevisionTasks } from '../models/repositories.js';
 import { extractYouTubeVideoId, fetchYouTubeMetadata, fetchYouTubeTranscript } from '../services/youtubeService.js';
 
+/**
+ * Helper to extract candidate topics from text
+ */
+function extractCandidateTopics(text, subject = 'General Concepts') {
+  const candidateTopics = [];
+  const lower = text.toLowerCase();
+  const commonTopics = [
+    'Processes and Threads',
+    'CPU Scheduling',
+    'Deadlocks',
+    'Memory Management',
+    'Virtual Memory',
+    'File Systems',
+    'Concurrency',
+    'Networking',
+    'Data Structures',
+    'Algorithms',
+    'Machine Learning',
+    'System Design',
+    'Database Systems',
+  ];
+  commonTopics.forEach((t) => {
+    if (lower.includes(t.toLowerCase()) || lower.includes(t.split(' ')[0].toLowerCase())) {
+      candidateTopics.push(t);
+    }
+  });
+  return candidateTopics.length > 0 ? candidateTopics : [subject || 'General Concepts'];
+}
 
+/**
+ * Universal content extractor:
+ * Extracts text from file (PDF, TXT, Image via OCR), pasted notes, or YouTube URL
+ * without requiring the user to save it to DB first, so they can preview & edit!
+ */
+export async function extractOnly(req, res) {
+  try {
+    const { pastedText, youtubeUrl, subject = 'General Studies' } = req.body;
+    let extractedText = '';
+    let metadata = {
+      sourceType: 'text',
+      fileName: 'Pasted Notes',
+      pageCount: 1,
+    };
+
+    if (youtubeUrl) {
+      const videoId = extractYouTubeVideoId(youtubeUrl);
+      if (!videoId) {
+        return res.status(400).json({
+          error: 'Invalid YouTube URL. Please provide a standard link like https://www.youtube.com/watch?v=... or https://youtu.be/...',
+        });
+      }
+      const ytMeta = await fetchYouTubeMetadata(videoId);
+      const transcriptResult = await fetchYouTubeTranscript(videoId);
+      extractedText = transcriptResult.text;
+      metadata = {
+        sourceType: 'youtube',
+        fileName: `${ytMeta.title}.youtube`,
+        title: ytMeta.title,
+        videoId,
+        authorName: ytMeta.authorName,
+        thumbnailUrl: ytMeta.thumbnailUrl,
+        durationSeconds: transcriptResult.durationSeconds,
+        pageCount: Math.ceil(transcriptResult.durationSeconds / 60) || 1,
+      };
+    } else if (req.file) {
+      const buffer = req.file.buffer;
+      const mime = req.file.mimetype;
+      const originalName = req.file.originalname;
+
+      metadata = {
+        sourceType: mime.startsWith('image/') ? 'image' : mime === 'application/pdf' ? 'pdf' : 'text',
+        fileName: originalName,
+        fileSize: req.file.size,
+        fileType: mime,
+        pageCount: 1,
+      };
+
+      if (mime === 'application/pdf') {
+        try {
+          const pdfData = await pdfParse(buffer);
+          metadata.pageCount = pdfData.numpages || 1;
+          extractedText = (pdfData.text || '').trim();
+
+          if (extractedText.length < 60) {
+            metadata.isScanned = true;
+            metadata.ocrNote =
+              'This document contains very little digital text. Running OCR on image content is recommended.';
+          }
+        } catch (pdfErr) {
+          return res.status(400).json({
+            error: 'Failed to extract text from the PDF file. It might be password-protected or corrupted.',
+          });
+        }
+      } else if (mime.startsWith('image/')) {
+        // Run OCR via Tesseract
+        try {
+          const ocrResult = await Tesseract.recognize(buffer, 'eng');
+          extractedText = (ocrResult.data?.text || '').trim();
+          metadata.confidence = ocrResult.data?.confidence;
+
+          if (!extractedText || extractedText.length < 15) {
+            return res.status(400).json({
+              error: 'No readable text could be recognized from this image. Please upload a clearer image or screenshot.',
+            });
+          }
+        } catch (ocrErr) {
+          console.error('OCR error:', ocrErr);
+          return res.status(400).json({
+            error: 'Failed to process image OCR. Please ensure the image is a valid PNG or JPEG with readable text.',
+          });
+        }
+      } else if (mime.startsWith('text/') || originalName.endsWith('.txt') || originalName.endsWith('.md')) {
+        extractedText = buffer.toString('utf-8').trim();
+      }
+    } else if (pastedText) {
+      extractedText = pastedText.trim();
+    }
+
+    if (!extractedText || extractedText.length < 15) {
+      return res.status(400).json({
+        error: 'Please provide valid study notes text or upload a readable file with at least 15 characters.',
+      });
+    }
+
+    const topics = extractCandidateTopics(extractedText, subject);
+
+    res.json({
+      success: true,
+      extractedText,
+      metadata,
+      topics,
+      characterCount: extractedText.length,
+      wordCount: extractedText.split(/\s+/).filter(Boolean).length,
+    });
+  } catch (err) {
+    console.error('Extraction error:', err);
+    res.status(500).json({ error: err.message || 'Failed to extract study material.' });
+  }
+}
+
+/**
+ * Upload & persist study material
+ */
 export async function uploadMaterial(req, res) {
   try {
     const userId = req.user._id || req.user.id;
-    const { title, subject, pastedText } = req.body;
+    const { title, subject, pastedText, extractedTextPreview } = req.body;
 
-    let extractedText = pastedText ? pastedText.trim() : '';
+    let extractedText = (extractedTextPreview || pastedText || '').trim();
     let fileMetadata = {
       fileName: 'Pasted Notes',
       fileSize: Buffer.byteLength(extractedText, 'utf8'),
@@ -19,38 +162,46 @@ export async function uploadMaterial(req, res) {
 
     if (req.file) {
       const buffer = req.file.buffer;
+      const mime = req.file.mimetype;
       fileMetadata = {
         fileName: req.file.originalname,
         fileSize: req.file.size,
-        fileType: req.file.mimetype,
+        fileType: mime,
         pageCount: 1,
         isScanned: false,
       };
 
-      if (req.file.mimetype === 'application/pdf') {
-        try {
-          const pdfData = await pdfParse(buffer);
-          fileMetadata.pageCount = pdfData.numpages || 1;
-          extractedText = (pdfData.text || '').trim();
+      if (!extractedText) {
+        if (mime === 'application/pdf') {
+          try {
+            const pdfData = await pdfParse(buffer);
+            fileMetadata.pageCount = pdfData.numpages || 1;
+            extractedText = (pdfData.text || '').trim();
 
-          // Check if PDF is a scanned image with minimal text
-          if (extractedText.length < 60 && pdfData.numpages >= 1) {
-            fileMetadata.isScanned = true;
-            fileMetadata.ocrNote =
-              'This document appears to contain scanned images or minimal selectable text. OCR is recommended for scanned documents.';
-            // Provide sensible fallback if scanned
-            if (!extractedText) {
-              extractedText = `[Scanned PDF: ${req.file.originalname}]\nNote: Very little selectable text was detected in this PDF. Please paste study text directly or use a digitally generated PDF for full text extraction.`;
+            if (extractedText.length < 60 && pdfData.numpages >= 1) {
+              fileMetadata.isScanned = true;
+              fileMetadata.ocrNote =
+                'This document appears to contain scanned images or minimal selectable text.';
             }
+          } catch (pdfErr) {
+            console.error('PDF parsing error:', pdfErr);
+            return res.status(400).json({
+              error: 'Failed to extract text from the PDF file. It might be password-protected or corrupted.',
+            });
           }
-        } catch (pdfErr) {
-          console.error('PDF parsing error:', pdfErr);
-          return res.status(400).json({
-            error: 'Failed to extract text from the PDF file. It might be password-protected or corrupted.',
-          });
+        } else if (mime.startsWith('image/')) {
+          try {
+            const ocrResult = await Tesseract.recognize(buffer, 'eng');
+            extractedText = (ocrResult.data?.text || '').trim();
+            fileMetadata.ocrConfidence = ocrResult.data?.confidence;
+          } catch (ocrErr) {
+            return res.status(400).json({
+              error: 'Failed to extract text from image. Please verify image readability or paste notes directly.',
+            });
+          }
+        } else if (mime.startsWith('text/')) {
+          extractedText = buffer.toString('utf-8').trim();
         }
-      } else if (req.file.mimetype.startsWith('text/')) {
-        extractedText = buffer.toString('utf-8').trim();
       }
     }
 
@@ -60,28 +211,7 @@ export async function uploadMaterial(req, res) {
       });
     }
 
-    // Auto-extract preliminary topic keywords
-    const candidateTopics = [];
-    const lower = extractedText.toLowerCase();
-    const commonTopics = [
-      'Processes and Threads',
-      'CPU Scheduling',
-      'Deadlocks',
-      'Memory Management',
-      'Virtual Memory',
-      'File Systems',
-      'Concurrency',
-      'Networking',
-      'Data Structures',
-      'Algorithms',
-    ];
-    commonTopics.forEach((t) => {
-      if (lower.includes(t.toLowerCase()) || lower.includes(t.split(' ')[0].toLowerCase())) {
-        candidateTopics.push(t);
-      }
-    });
-
-    const finalTopics = candidateTopics.length > 0 ? candidateTopics : [subject || 'General Concepts'];
+    const finalTopics = extractCandidateTopics(extractedText, subject);
 
     const newMaterial = await StudyMaterials.create({
       userId,
@@ -108,7 +238,6 @@ export async function listMaterials(req, res) {
     const userId = req.user._id || req.user.id;
     const materials = await StudyMaterials.find({ userId }, { createdAt: -1 });
 
-    // Attach card and question counts
     const enriched = await Promise.all(
       materials.map(async (m) => {
         const decks = await FlashcardDecks.find({ materialId: m._id || m.id });
@@ -155,6 +284,33 @@ export async function getMaterial(req, res) {
   }
 }
 
+export async function updateMaterial(req, res) {
+  try {
+    const userId = req.user._id || req.user.id;
+    const { id } = req.params;
+    const { title, subject, extractedText } = req.body;
+
+    const material = await StudyMaterials.findById(id);
+    if (!material) return res.status(404).json({ error: 'Material not found.' });
+    if (String(material.userId) !== String(userId)) {
+      return res.status(403).json({ error: 'Unauthorized.' });
+    }
+
+    const updates = {};
+    if (title) updates.title = title.trim();
+    if (subject) updates.subject = subject.trim();
+    if (extractedText) {
+      updates.extractedText = extractedText.trim();
+      updates.topics = extractCandidateTopics(extractedText, updates.subject || material.subject);
+    }
+
+    const updated = await StudyMaterials.findByIdAndUpdate(id, updates);
+    res.json({ message: 'Material updated successfully.', material: updated });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update material.' });
+  }
+}
+
 export async function deleteMaterial(req, res) {
   try {
     const userId = req.user._id || req.user.id;
@@ -183,7 +339,7 @@ export async function deleteMaterial(req, res) {
 export async function importYouTubeMaterial(req, res) {
   try {
     const userId = req.user._id || req.user.id;
-    const { youtubeUrl, subject, title } = req.body;
+    const { youtubeUrl, subject, title, extractedTextPreview } = req.body;
 
     if (!youtubeUrl) {
       return res.status(400).json({ error: 'Please provide a valid YouTube video URL or ID.' });
@@ -196,52 +352,31 @@ export async function importYouTubeMaterial(req, res) {
       });
     }
 
-    // 1. Fetch metadata (Title, Author, Thumbnail)
     const metadata = await fetchYouTubeMetadata(videoId);
 
-    // 2. Fetch Transcript
-    let transcriptResult;
-    try {
-      transcriptResult = await fetchYouTubeTranscript(videoId);
-    } catch (transcriptErr) {
-      return res.status(400).json({
-        error: transcriptErr.message,
-        metadata,
-        videoId,
-      });
+    let extractedText = extractedTextPreview?.trim();
+    let transcriptResult = null;
+
+    if (!extractedText) {
+      try {
+        transcriptResult = await fetchYouTubeTranscript(videoId);
+        extractedText = transcriptResult.text;
+      } catch (transcriptErr) {
+        return res.status(400).json({
+          error: transcriptErr.message,
+          metadata,
+          videoId,
+        });
+      }
     }
 
-    const extractedText = transcriptResult.text;
     if (!extractedText || extractedText.length < 30) {
       return res.status(400).json({
         error: 'The transcript for this video was too short or empty to generate study material.',
       });
     }
 
-    // Extract preliminary candidate topics
-    const candidateTopics = [];
-    const lower = (metadata.title + ' ' + extractedText).toLowerCase();
-    const commonTopics = [
-      'Processes and Threads',
-      'CPU Scheduling',
-      'Deadlocks',
-      'Memory Management',
-      'Virtual Memory',
-      'File Systems',
-      'Concurrency',
-      'Networking',
-      'Data Structures',
-      'Algorithms',
-      'Machine Learning',
-      'System Design',
-    ];
-    commonTopics.forEach((t) => {
-      if (lower.includes(t.toLowerCase()) || lower.includes(t.split(' ')[0].toLowerCase())) {
-        candidateTopics.push(t);
-      }
-    });
-
-    const finalTopics = candidateTopics.length > 0 ? candidateTopics : [subject || 'YouTube Lecture'];
+    const finalTopics = extractCandidateTopics(extractedText, subject);
     const finalTitle = title?.trim() || metadata.title;
 
     const newMaterial = await StudyMaterials.create({
@@ -253,12 +388,12 @@ export async function importYouTubeMaterial(req, res) {
         fileName: `${metadata.title}.youtube`,
         fileSize: Buffer.byteLength(extractedText, 'utf8'),
         fileType: 'youtube',
-        pageCount: Math.ceil(transcriptResult.durationSeconds / 60) || 1,
+        pageCount: Math.ceil((transcriptResult?.durationSeconds || 600) / 60) || 1,
         youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
         videoId,
         authorName: metadata.authorName,
         thumbnailUrl: metadata.thumbnailUrl,
-        durationSeconds: transcriptResult.durationSeconds,
+        durationSeconds: transcriptResult?.durationSeconds || 600,
         isScanned: false,
       },
       processingStatus: 'ready',
@@ -275,4 +410,3 @@ export async function importYouTubeMaterial(req, res) {
     res.status(500).json({ error: 'Failed to import YouTube video transcript.' });
   }
 }
-

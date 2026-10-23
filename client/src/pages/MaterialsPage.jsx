@@ -276,6 +276,31 @@ export default function MaterialsPage() {
             </div>
           )}
 
+          {/* Unified AI Wizard Callout */}
+          <div className="bg-gradient-to-r from-indigo-900 to-indigo-800 rounded-2xl p-5 sm:p-6 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 text-xs font-semibold">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>10-Step Unified Workflow</span>
+              </div>
+              <h3 className="text-base font-bold text-white font-heading">
+                Transform Notes, OCR Screenshots & YouTube into Flashcards & Quizzes
+              </h3>
+              <p className="text-xs text-indigo-200 max-w-2xl">
+                Extract text with preview & editing, configure exact question quantities, and review generated items before saving directly to your spaced repetition schedule.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/create')}
+              className="px-5 py-2.5 rounded-xl bg-white text-indigo-900 font-bold text-xs hover:bg-indigo-50 transition-colors shadow-sm shrink-0 flex items-center gap-2 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-indigo-600" />
+              <span>Launch Creator Wizard</span>
+              <ChevronRight className="w-4 h-4 text-slate-400" />
+            </button>
+          </div>
+
           {/* Upload & Input Card */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-6 sm:p-8 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">

@@ -47,9 +47,18 @@ const FlashcardDeckSchema = new mongoose.Schema({
       id: { type: String, required: true },
       question: { type: String, required: true },
       answer: { type: String, required: true },
+      explanation: String,
       topic: { type: String, required: true },
+      conceptId: String,
       difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
       sourceReference: String,
+      repetitions: { type: Number, default: 0 },
+      interval: { type: Number, default: 0 },
+      easeFactor: { type: Number, default: 2.5 },
+      nextDueDate: { type: Date },
+      lastReviewedAt: { type: Date },
+      lapses: { type: Number, default: 0 },
+      state: { type: String, enum: ['new', 'learning', 'review', 'relearning'], default: 'new' },
     },
   ],
   topicMetadata: [
@@ -66,8 +75,8 @@ const QuestionSchema = new mongoose.Schema({
   materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'StudyMaterial' },
   deckId: { type: mongoose.Schema.Types.ObjectId, ref: 'FlashcardDeck' },
   questionText: { type: String, required: true },
-  questionType: { type: String, enum: ['mcq', 'short_answer', 'flashcard'], required: true },
-  options: [String], // For MCQs
+  questionType: { type: String, enum: ['mcq', 'short_answer', 'true_false', 'flashcard'], required: true },
+  options: [String], // For MCQs and True/False
   correctAnswer: String, // For MCQs
   referenceAnswer: String, // For short answer
   expectedKeyConcepts: [String], // Key terms/concepts expected
@@ -135,6 +144,64 @@ const RevisionTaskSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
+const ReviewStateSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  cardId: { type: String, required: true },
+  deckId: { type: String, required: true },
+  materialId: { type: String },
+  topic: { type: String },
+  conceptId: { type: String },
+  questionText: { type: String },
+  answerText: { type: String },
+  repetitions: { type: Number, default: 0 },
+  interval: { type: Number, default: 0 },
+  easeFactor: { type: Number, default: 2.5 },
+  nextDueDate: { type: Date, required: true },
+  lastReviewedAt: { type: Date },
+  lapses: { type: Number, default: 0 },
+  state: { type: String, enum: ['new', 'learning', 'review', 'relearning'], default: 'new' },
+  history: [
+    {
+      rating: { type: String, enum: ['again', 'hard', 'good', 'easy', 'skip'] },
+      interval: Number,
+      timestamp: { type: Date, default: Date.now },
+      studyMode: String,
+    },
+  ],
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+const ReviewEventSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  cardId: { type: String },
+  questionId: { type: String },
+  deckId: { type: String },
+  conceptId: { type: String },
+  topic: { type: String },
+  studyMode: { type: String, enum: ['silent', 'voice', 'auto', 'quiz'], default: 'silent' },
+  rating: { type: String, enum: ['again', 'hard', 'good', 'easy', 'skip'] },
+  isCorrect: { type: Boolean },
+  aiEvaluation: { type: Object },
+  responseTimeSeconds: { type: Number, default: 0 },
+  isSkip: { type: Boolean, default: false },
+  sessionId: { type: String },
+  timestamp: { type: Date, default: Date.now },
+});
+
+const ConceptSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  materialId: { type: String },
+  deckId: { type: String },
+  name: { type: String, required: true },
+  description: { type: String },
+  masteryScore: { type: Number, default: 0 },
+  status: { type: String, enum: ['unpracticed', 'learning', 'revising', 'mastered'], default: 'unpracticed' },
+  associatedCardIds: [String],
+  associatedQuestionIds: [String],
+  createdAt: { type: Date, default: Date.now },
+});
+
 export const UserModel = mongoose.models.User || mongoose.model('User', UserSchema);
 export const StudyMaterialModel = mongoose.models.StudyMaterial || mongoose.model('StudyMaterial', StudyMaterialSchema);
 export const FlashcardDeckModel = mongoose.models.FlashcardDeck || mongoose.model('FlashcardDeck', FlashcardDeckSchema);
@@ -142,3 +209,7 @@ export const QuestionModel = mongoose.models.Question || mongoose.model('Questio
 export const StudyAttemptModel = mongoose.models.StudyAttempt || mongoose.model('StudyAttempt', StudyAttemptSchema);
 export const StudySessionModel = mongoose.models.StudySession || mongoose.model('StudySession', StudySessionSchema);
 export const RevisionTaskModel = mongoose.models.RevisionTask || mongoose.model('RevisionTask', RevisionTaskSchema);
+export const ReviewStateModel = mongoose.models.ReviewState || mongoose.model('ReviewState', ReviewStateSchema);
+export const ReviewEventModel = mongoose.models.ReviewEvent || mongoose.model('ReviewEvent', ReviewEventSchema);
+export const ConceptModel = mongoose.models.Concept || mongoose.model('Concept', ConceptSchema);
+

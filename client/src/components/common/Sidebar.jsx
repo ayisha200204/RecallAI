@@ -8,6 +8,7 @@ import {
   Mic,
   BarChart3,
   CalendarCheck,
+  Calendar,
   Settings,
   LogOut,
   Flame,
@@ -20,6 +21,8 @@ import { useAuth } from '../../context/AuthContext';
 
 const NAV_ITEMS = [
   { name: 'Overview', to: '/dashboard', icon: LayoutDashboard },
+  { name: 'Create Study Set', to: '/create', icon: Sparkles, badge: 'AI' },
+  { name: 'Review Calendar', to: '/calendar', icon: Calendar, badge: 'SRS' },
   { name: 'My Study Materials', to: '/materials', icon: FileText },
   { name: 'Practice Quiz', to: '/practice', icon: CheckCircle2 },
   { name: 'Voice Study', to: '/voice-study', icon: Mic, badge: 'Voice AI' },

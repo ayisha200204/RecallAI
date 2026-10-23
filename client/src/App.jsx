@@ -14,6 +14,8 @@ import VoiceStudyPage from './pages/VoiceStudyPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import PlannerPage from './pages/PlannerPage';
 import SettingsPage from './pages/SettingsPage';
+import CreateStudySetPage from './pages/CreateStudySetPage';
+import ReviewCalendarPage from './pages/ReviewCalendarPage';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -58,6 +60,22 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/create"
+            element={
+              <ProtectedRoute>
+                <CreateStudySetPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/calendar"
+            element={
+              <ProtectedRoute>
+                <ReviewCalendarPage />
               </ProtectedRoute>
             }
           />

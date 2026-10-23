@@ -7,6 +7,8 @@ import {
   StudyAttempts,
   StudySessions,
   RevisionTasks,
+  ReviewStates,
+  ReviewEvents,
 } from '../models/repositories.js';
 import { generateToken } from '../middleware/auth.js';
 import { generateStudyMaterials } from '../services/aiService.js';
@@ -46,6 +48,8 @@ export async function seedDemoData() {
   await StudyAttempts.deleteMany({ userId: user._id });
   await StudySessions.deleteMany({ userId: user._id });
   await RevisionTasks.deleteMany({ userId: user._id });
+  await ReviewStates.deleteMany({ userId: user._id });
+  await ReviewEvents.deleteMany({ userId: user._id });
 
   const osText = `Operating System Architecture and Concurrency
 Processes and Threads: A process is a program in execution requiring PCB, memory space, and OS bookkeeping. Threads represent lightweight execution pathways within the same address space.
@@ -93,11 +97,72 @@ Device Drivers: The OS abstracts hardware inputs and outputs so software can int
     topics: ['Processes and Threads', 'CPU Scheduling', 'Memory Management'],
   });
 
-
   const generated = await generateStudyMaterials({
     text: osText,
     subject: 'Operating Systems',
-    requestedTypes: ['flashcards', 'mcqs', 'short_answer'],
+    requestedTypes: ['flashcards', 'mcqs', 'true_false', 'short_answer'],
+  });
+
+  const nowMs = Date.now();
+  const dayMs = 24 * 3600 * 1000;
+
+  // Enrich demo cards with realistic SRS review timelines
+  const demoSrsCards = generated.flashcards.map((card, idx) => {
+    if (idx === 0) {
+      // Overdue review (due 1.2 days ago)
+      return {
+        ...card,
+        repetitions: 3,
+        interval: 7,
+        easeFactor: 2.5,
+        state: 'review',
+        lastReviewedAt: new Date(nowMs - 8.2 * dayMs).toISOString(),
+        nextDueDate: new Date(nowMs - 1.2 * dayMs).toISOString(),
+      };
+    } else if (idx === 1) {
+      // Due today (due 3 hours ago)
+      return {
+        ...card,
+        repetitions: 2,
+        interval: 3,
+        easeFactor: 2.4,
+        state: 'review',
+        lastReviewedAt: new Date(nowMs - 3.1 * dayMs).toISOString(),
+        nextDueDate: new Date(nowMs - 3 * 3600 * 1000).toISOString(),
+      };
+    } else if (idx === 2) {
+      // Due later today
+      return {
+        ...card,
+        repetitions: 1,
+        interval: 1,
+        easeFactor: 2.5,
+        state: 'review',
+        lastReviewedAt: new Date(nowMs - 0.7 * dayMs).toISOString(),
+        nextDueDate: new Date(nowMs + 4 * 3600 * 1000).toISOString(),
+      };
+    } else if (idx === 3) {
+      // Due in 3 days
+      return {
+        ...card,
+        repetitions: 2,
+        interval: 7,
+        easeFactor: 2.6,
+        state: 'review',
+        lastReviewedAt: new Date(nowMs - 4 * dayMs).toISOString(),
+        nextDueDate: new Date(nowMs + 3 * dayMs).toISOString(),
+      };
+    } else {
+      // New card
+      return {
+        ...card,
+        repetitions: 0,
+        interval: 0,
+        easeFactor: 2.5,
+        state: 'new',
+        nextDueDate: new Date().toISOString(),
+      };
+    }
   });
 
   const deck = await FlashcardDecks.create({
@@ -105,11 +170,32 @@ Device Drivers: The OS abstracts hardware inputs and outputs so software can int
     materialId: material._id,
     title: 'OS Essentials — Core Mastery Deck',
     subject: 'Operating Systems',
-    cards: generated.flashcards,
+    cards: demoSrsCards,
     topicMetadata: generated.topics.map((t) => ({ name: t, cardCount: 1 })),
   });
 
-  // Save questions
+  // Seed ReviewStates for each card
+  for (const c of demoSrsCards) {
+    await ReviewStates.create({
+      userId: user._id,
+      cardId: c.id,
+      deckId: deck._id,
+      materialId: material._id,
+      topic: c.topic,
+      questionText: c.question,
+      answerText: c.answer,
+      repetitions: c.repetitions,
+      interval: c.interval,
+      easeFactor: c.easeFactor,
+      nextDueDate: c.nextDueDate,
+      lastReviewedAt: c.lastReviewedAt || null,
+      lapses: idx => (idx === 1 ? 1 : 0),
+      state: c.state,
+      history: c.repetitions > 0 ? [{ rating: 'good', interval: c.interval, timestamp: c.lastReviewedAt }] : [],
+    });
+  }
+
+  // Save questions (MCQs, True/False, Short Answer)
   const questionsToSave = [
     ...generated.mcqs.map((q) => ({
       userId: user._id,
@@ -122,6 +208,18 @@ Device Drivers: The OS abstracts hardware inputs and outputs so software can int
       explanation: q.explanation,
       topic: q.topic,
       difficulty: q.difficulty,
+    })),
+    ...generated.trueFalse.map((tf) => ({
+      userId: user._id,
+      materialId: material._id,
+      deckId: deck._id,
+      questionText: tf.question,
+      questionType: 'true_false',
+      options: ['True', 'False'],
+      correctAnswer: tf.correctAnswer,
+      explanation: tf.explanation,
+      topic: tf.topic,
+      difficulty: tf.difficulty,
     })),
     ...generated.shortAnswers.map((sa) => ({
       userId: user._id,

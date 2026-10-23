@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import {
   CheckCircle2,
   XCircle,
@@ -15,6 +15,9 @@ import {
   Check,
   ChevronRight,
   Layers,
+  Clock,
+  Eye,
+  CheckSquare,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import Sidebar from '../components/common/Sidebar';
@@ -25,13 +28,20 @@ import api from '../services/api';
 
 export default function PracticePage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const initialTopic = searchParams.get('topic') || 'all';
   const initialMaterialId = searchParams.get('materialId') || '';
 
   // Filter state
   const [topicFilter, setTopicFilter] = useState(initialTopic);
   const [difficultyFilter, setDifficultyFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all'); // 'all', 'mcq', 'true_false', 'short_answer'
+
+  // Test Mode Settings: 'immediate' | 'end_of_test'
+  const [feedbackMode, setFeedbackMode] = useState('immediate');
+  const [timedMode, setTimedMode] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(60);
+  const timerRef = useRef(null);
 
   // Quiz state
   const [questions, setQuestions] = useState([]);
@@ -48,7 +58,8 @@ export default function PracticePage() {
   const [evaluationResult, setEvaluationResult] = useState(null);
 
   // Overall session results
-  const [attemptsHistory, setAttemptsHistory] = useState([]); // [{ question, submittedAnswer, isCorrect, score, feedback }]
+  const [attemptsHistory, setAttemptsHistory] = useState([]);
+  const [showOnlyIncorrect, setShowOnlyIncorrect] = useState(false);
 
   const fetchQuestions = async () => {
     setLoading(true);
@@ -85,19 +96,51 @@ export default function PracticePage() {
     setConfidence(3);
     setIsAnswerSubmitted(false);
     setEvaluationResult(null);
+    if (timedMode) setTimeRemaining(45);
   };
+
+  // Timer effect
+  useEffect(() => {
+    if (!timedMode || isCompleted || isAnswerSubmitted) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+
+    timerRef.current = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          // Auto submit current selection or mark empty
+          handleSubmitAnswer();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [timedMode, isCompleted, isAnswerSubmitted, currentIndex]);
 
   const currentQuestion = questions[currentIndex];
 
   const handleSubmitAnswer = async () => {
     if (!currentQuestion || isAnswerSubmitted) return;
 
-    const answer =
-      currentQuestion.questionType === 'mcq' ? selectedOption : shortAnswerInput;
+    let answer = '';
+    if (currentQuestion.questionType === 'mcq' || currentQuestion.questionType === 'true_false') {
+      answer = selectedOption;
+    } else {
+      answer = shortAnswerInput;
+    }
 
     if (!answer || answer.trim().length === 0) {
-      alert('Please select an option or write your explanation.');
-      return;
+      if (!timedMode) {
+        alert('Please select an option or write your response.');
+        return;
+      }
+      answer = 'No answer submitted';
     }
 
     setSubmittingAttempt(true);
@@ -106,26 +149,31 @@ export default function PracticePage() {
         questionId: currentQuestion._id || currentQuestion.id,
         submittedAnswer: answer,
         confidenceRating: confidence,
-        timeTakenSeconds: 20,
+        timeTakenSeconds: timedMode ? 45 - timeRemaining : 20,
       });
 
       setEvaluationResult(res.data);
       setIsAnswerSubmitted(true);
 
-      // Record in session attempts history
-      setAttemptsHistory((prev) => [
-        ...prev,
-        {
-          question: currentQuestion,
-          submittedAnswer: answer,
-          isCorrect: res.data.isCorrect,
-          score: res.data.score,
-          correctAnswer: res.data.correctAnswer,
-          explanation: res.data.explanation,
-          feedback: res.data.feedback,
-          confidence,
-        },
-      ]);
+      const attemptRecord = {
+        question: currentQuestion,
+        submittedAnswer: answer,
+        isCorrect: res.data.isCorrect,
+        score: res.data.score,
+        correctAnswer: res.data.correctAnswer,
+        explanation: res.data.explanation,
+        feedback: res.data.feedback,
+        confidence,
+      };
+
+      setAttemptsHistory((prev) => [...prev, attemptRecord]);
+
+      // If in end-of-test mode, auto advance after brief pause
+      if (feedbackMode === 'end_of_test') {
+        setTimeout(() => {
+          handleNextQuestion(attemptRecord);
+        }, 300);
+      }
     } catch (err) {
       console.error('Submit attempt error:', err);
     } finally {
@@ -133,22 +181,29 @@ export default function PracticePage() {
     }
   };
 
-  const handleNextQuestion = () => {
+  const handleNextQuestion = (latestRecord = null) => {
     if (currentIndex < questions.length - 1) {
       resetQuestionState();
       setCurrentIndex((i) => i + 1);
     } else {
-      // Completed practice session
+      // Completed test
       setIsCompleted(true);
-      confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+      confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
 
-      const correctCount = attemptsHistory.filter((a) => a.isCorrect).length;
+      const allRecords = latestRecord ? [...attemptsHistory, latestRecord] : attemptsHistory;
+      const correctCount = allRecords.filter((a) => a.isCorrect).length;
+
       api.post('/practice/session', {
         sessionType: 'practice',
-        title: `Practice Quiz: ${topicFilter === 'all' ? 'All Topics' : topicFilter}`,
-        questionsAttempted: attemptsHistory.length,
+        title: `Test: ${topicFilter === 'all' ? 'Adaptive Curriculum' : topicFilter}`,
+        questionsAttempted: allRecords.length,
         correctCount,
-        topicsCovered: Array.from(new Set(attemptsHistory.map((a) => a.question.topic))),
+        durationSeconds: 180,
+        topicsCovered: Array.from(new Set(allRecords.map((a) => a.question.topic))),
+        resultsBreakdown: allRecords.map((a) => ({
+          topic: a.question.topic,
+          isCorrect: a.isCorrect,
+        })),
       }).catch(() => {});
     }
   };
@@ -163,10 +218,30 @@ export default function PracticePage() {
   };
 
   const correctAttemptsCount = attemptsHistory.filter((a) => a.isCorrect).length;
-  const accuracyPercentage = attemptsHistory.length > 0 ? Math.round((correctAttemptsCount / attemptsHistory.length) * 100) : 0;
+  const accuracyPercentage =
+    attemptsHistory.length > 0 ? Math.round((correctAttemptsCount / attemptsHistory.length) * 100) : 0;
 
-  // Group missed questions
-  const missedQuestions = attemptsHistory.filter((a) => !a.isCorrect);
+  // Strengths and weaknesses calculation
+  const topicStats = {};
+  attemptsHistory.forEach((att) => {
+    const t = att.question?.topic || 'General';
+    if (!topicStats[t]) topicStats[t] = { correct: 0, total: 0 };
+    topicStats[t].total += 1;
+    if (att.isCorrect) topicStats[t].correct += 1;
+  });
+
+  const strengths = [];
+  const weaknesses = [];
+  Object.entries(topicStats).forEach(([t, s]) => {
+    const pct = s.total > 0 ? (s.correct / s.total) * 100 : 0;
+    if (pct >= 70) strengths.push({ topic: t, accuracy: Math.round(pct) });
+    else weaknesses.push({ topic: t, accuracy: Math.round(pct) });
+  });
+
+  // Filtered review list
+  const reviewList = showOnlyIncorrect
+    ? attemptsHistory.filter((a) => !a.isCorrect)
+    : attemptsHistory;
 
   return (
     <div className="flex min-h-screen bg-[#FAF9F6]">
@@ -174,25 +249,32 @@ export default function PracticePage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         <Header
-          title="Practice Mode"
-          subtitle="Test active recall, receive immediate semantic evaluation, and reinforce weak topics."
+          title="Active Recall Test & Practice"
+          subtitle="Multiple-choice, True/False, and conceptual short answer questions with persistent performance evaluation."
+          actionButton={
+            <Link
+              to="/create"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-xs cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Create New Test Set</span>
+            </Link>
+          }
         />
 
         <div className="p-6 sm:p-8 max-w-4xl mx-auto w-full flex-1 flex flex-col">
-          {/* Filter Bar */}
+          {/* Test Control & Filter Bar */}
           {!isCompleted && (
-            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs mb-6 flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-slate-400" />
-                <span className="text-xs font-bold text-slate-700">Filters:</span>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2.5">
-                {/* Topic filter */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs mb-6 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                  <Filter className="w-4 h-4 text-slate-400" />
+                  <span>Topic:</span>
+                </div>
                 <select
                   value={topicFilter}
                   onChange={(e) => setTopicFilter(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none"
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
                 >
                   <option value="all">All Topics</option>
                   <option value="Processes and Threads">Processes and Threads</option>
@@ -202,28 +284,51 @@ export default function PracticePage() {
                   <option value="Virtual Memory">Virtual Memory</option>
                 </select>
 
-                {/* Difficulty filter */}
-                <select
-                  value={difficultyFilter}
-                  onChange={(e) => setDifficultyFilter(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none"
-                >
-                  <option value="all">All Difficulties</option>
-                  <option value="easy">Easy</option>
-                  <option value="medium">Medium</option>
-                  <option value="hard">Hard</option>
-                </select>
-
-                {/* Question type filter */}
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none"
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
                 >
-                  <option value="all">All Types</option>
+                  <option value="all">All Question Types</option>
                   <option value="mcq">Multiple Choice</option>
+                  <option value="true_false">True / False</option>
                   <option value="short_answer">Short Answer</option>
                 </select>
+              </div>
+
+              {/* Feedback Mode & Timer Toggles */}
+              <div className="flex items-center gap-3 text-xs">
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setFeedbackMode('immediate')}
+                    className={`px-2.5 py-1 rounded-md font-bold transition-all ${
+                      feedbackMode === 'immediate' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500'
+                    }`}
+                  >
+                    Immediate Feedback
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFeedbackMode('end_of_test')}
+                    className={`px-2.5 py-1 rounded-md font-bold transition-all ${
+                      feedbackMode === 'end_of_test' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500'
+                    }`}
+                  >
+                    End of Test
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setTimedMode(!timedMode)}
+                  className={`px-2.5 py-1 rounded-lg border font-bold flex items-center gap-1 cursor-pointer ${
+                    timedMode ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-slate-200 text-slate-600'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{timedMode ? `${timeRemaining}s` : 'Timer'}</span>
+                </button>
               </div>
             </div>
           )}
@@ -232,31 +337,30 @@ export default function PracticePage() {
             loading ? (
               <div className="flex-1 flex items-center justify-center py-20 text-slate-500 text-sm">
                 <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mr-3" />
-                <span>Preparing adaptive questions...</span>
+                <span>Loading adaptive test questions...</span>
               </div>
             ) : questions.length === 0 ? (
-              <div className="bg-white p-12 rounded-2xl border border-dashed border-slate-200 text-center">
-                <HelpCircle className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+              <div className="bg-white p-12 rounded-3xl border border-dashed border-slate-200 text-center space-y-4">
+                <HelpCircle className="w-10 h-10 text-slate-400 mx-auto" />
                 <h3 className="text-base font-bold text-slate-800 font-heading">
-                  No questions match these filters
+                  No practice questions match these filters
                 </h3>
-                <p className="text-xs text-slate-500 mt-1 mb-5">
-                  Try selecting 'All Topics' or upload new notes in Study Materials.
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Select 'All Topics' or create a new study set using the study material builder.
                 </p>
                 <button
                   type="button"
                   onClick={() => {
                     setTopicFilter('all');
-                    setDifficultyFilter('all');
                     setTypeFilter('all');
                   }}
-                  className="bg-indigo-600 text-white text-xs font-semibold px-4 py-2 rounded-xl"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl cursor-pointer"
                 >
                   Reset Filters
                 </button>
               </div>
             ) : (
-              /* Active Question Card */
+              /* Active Test Question Card */
               <div className="space-y-6 flex-1 flex flex-col justify-between">
                 {/* Progress bar */}
                 <div className="space-y-2">
@@ -268,8 +372,8 @@ export default function PracticePage() {
                       <span className="text-slate-400">•</span>
                       <span className="text-indigo-700 font-medium">{currentQuestion.topic}</span>
                       <span className="text-slate-400">•</span>
-                      <span className="text-slate-500 font-normal">
-                        {currentQuestion.questionType === 'mcq' ? 'Multiple Choice' : 'Conceptual Short Answer'}
+                      <span className="text-slate-500 capitalize">
+                        {currentQuestion.questionType.replace('_', ' ')}
                       </span>
                     </div>
 
@@ -286,8 +390,8 @@ export default function PracticePage() {
                   </div>
                 </div>
 
-                {/* Question Box */}
-                <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+                {/* Question Prompt */}
+                <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs space-y-6">
                   <div className="flex items-start justify-between gap-4">
                     <h2 className="text-lg sm:text-xl font-bold text-slate-900 font-heading leading-snug">
                       {currentQuestion.questionText}
@@ -298,149 +402,138 @@ export default function PracticePage() {
                       title="Read question aloud"
                       className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-50 transition-colors shrink-0"
                     >
-                      <Volume2 className="w-5 h-5" />
+                      <Volume2 className="w-4 h-4" />
                     </button>
                   </div>
 
                   {/* MCQ Options */}
                   {currentQuestion.questionType === 'mcq' && (
-                    <div className="space-y-2.5">
+                    <div className="grid grid-cols-1 gap-3">
                       {(currentQuestion.options || []).map((option, idx) => {
                         const isSelected = selectedOption === option;
-                        const isRevealed = isAnswerSubmitted;
-                        const isOptionCorrect = evaluationResult?.correctAnswer === option;
+                        let optionStyle = 'border-slate-200 bg-slate-50/60 hover:bg-slate-100 hover:border-slate-300 text-slate-800';
 
-                        let styleClasses = 'border-slate-200 hover:border-slate-300 bg-slate-50/50';
-
-                        if (isRevealed) {
-                          if (isOptionCorrect) {
-                            styleClasses = 'border-emerald-500 bg-emerald-50/60 text-emerald-950 font-semibold';
+                        if (isAnswerSubmitted && feedbackMode === 'immediate') {
+                          if (evaluationResult?.correctAnswer === option) {
+                            optionStyle = 'border-emerald-500 bg-emerald-50 text-emerald-950 font-bold';
                           } else if (isSelected && !evaluationResult?.isCorrect) {
-                            styleClasses = 'border-rose-400 bg-rose-50/60 text-rose-950';
-                          } else {
-                            styleClasses = 'border-slate-200 opacity-60';
+                            optionStyle = 'border-rose-400 bg-rose-50 text-rose-950 line-through';
                           }
                         } else if (isSelected) {
-                          styleClasses = 'border-indigo-600 bg-indigo-50/70 text-indigo-950 shadow-xs';
+                          optionStyle = 'border-indigo-600 bg-indigo-50/60 text-indigo-950 font-semibold ring-2 ring-indigo-600/20';
                         }
 
                         return (
-                          <div
+                          <button
                             key={idx}
-                            onClick={() => !isAnswerSubmitted && setSelectedOption(option)}
-                            className={`p-4 rounded-xl border text-xs sm:text-sm font-medium transition-all cursor-pointer flex items-center justify-between ${styleClasses}`}
+                            type="button"
+                            disabled={isAnswerSubmitted}
+                            onClick={() => setSelectedOption(option)}
+                            className={`p-4 rounded-2xl border text-left text-xs sm:text-sm transition-all flex items-center justify-between cursor-pointer ${optionStyle}`}
                           >
-                            <div className="flex items-center gap-3">
-                              <span
-                                className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${
-                                  isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'
-                                }`}
-                              >
-                                {String.fromCharCode(65 + idx)}
-                              </span>
-                              <span>{option}</span>
-                            </div>
-
-                            {isRevealed && isOptionCorrect && (
-                              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                            )}
-                            {isRevealed && isSelected && !evaluationResult?.isCorrect && (
-                              <XCircle className="w-5 h-5 text-rose-500 shrink-0" />
-                            )}
-                          </div>
+                            <span>{option}</span>
+                            {isSelected && <Check className="w-4 h-4 text-indigo-600 shrink-0 ml-2" />}
+                          </button>
                         );
                       })}
                     </div>
                   )}
 
-                  {/* Short Answer Input */}
+                  {/* True / False Options */}
+                  {currentQuestion.questionType === 'true_false' && (
+                    <div className="grid grid-cols-2 gap-4">
+                      {['True', 'False'].map((opt) => {
+                        const isSelected = selectedOption === opt;
+                        let btnStyle = 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800';
+
+                        if (isAnswerSubmitted && feedbackMode === 'immediate') {
+                          if (evaluationResult?.correctAnswer === opt) {
+                            btnStyle = 'border-emerald-500 bg-emerald-50 text-emerald-950 font-extrabold';
+                          } else if (isSelected && !evaluationResult?.isCorrect) {
+                            btnStyle = 'border-rose-400 bg-rose-50 text-rose-950 line-through';
+                          }
+                        } else if (isSelected) {
+                          btnStyle = 'border-indigo-600 bg-indigo-50/80 text-indigo-950 font-extrabold ring-2 ring-indigo-600/20';
+                        }
+
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            disabled={isAnswerSubmitted}
+                            onClick={() => setSelectedOption(opt)}
+                            className={`py-6 rounded-2xl border text-center font-heading text-lg font-bold transition-all cursor-pointer ${btnStyle}`}
+                          >
+                            <span>{opt}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Conceptual Short Answer */}
                   {currentQuestion.questionType === 'short_answer' && (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <textarea
                         rows={4}
                         disabled={isAnswerSubmitted}
                         value={shortAnswerInput}
                         onChange={(e) => setShortAnswerInput(e.target.value)}
-                        placeholder="Write your explanation in your own words. Explain key mechanisms and concepts..."
-                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 leading-relaxed font-body"
+                        placeholder="Explain the concept in your own words. The evaluator looks for understanding of key principles..."
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 leading-relaxed font-body"
                       />
-                      <span className="text-[11px] text-slate-400 block">
-                        Our semantic evaluator tests conceptual understanding and expected key concepts rather than strict verbatim matching.
-                      </span>
                     </div>
                   )}
 
-                  {/* Immediate Feedback Box upon submission */}
-                  {isAnswerSubmitted && evaluationResult && (
-                    <div
-                      className={`p-5 rounded-xl border space-y-3 ${
-                        evaluationResult.isCorrect
-                          ? 'bg-emerald-50/70 border-emerald-200/90 text-emerald-950'
-                          : 'bg-amber-50/70 border-amber-200/90 text-amber-950'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        {evaluationResult.isCorrect ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                        ) : (
-                          <AlertCircle className="w-5 h-5 text-amber-600" />
-                        )}
-                        <h4 className="text-sm font-bold font-heading">
-                          {evaluationResult.isCorrect ? 'Correct! Strong Conceptual Recall.' : 'Needs Reinforcement.'}
-                        </h4>
-                      </div>
-
-                      <p className="text-xs leading-relaxed">
-                        {evaluationResult.feedback?.summary || evaluationResult.explanation}
-                      </p>
-
-                      {/* Concept tags matched vs missed for short-answer */}
-                      {evaluationResult.feedback?.conceptsMatched && (
-                        <div className="space-y-1.5 pt-2 border-t border-slate-200/40 text-xs">
-                          {evaluationResult.feedback.conceptsMatched.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-[11px] font-semibold text-emerald-800">Concepts Matched:</span>
-                              {evaluationResult.feedback.conceptsMatched.map((c, i) => (
-                                <span key={i} className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-semibold">
-                                  ✓ {c}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {evaluationResult.feedback.conceptsMissed?.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-[11px] font-semibold text-amber-800">Missing Concepts:</span>
-                              {evaluationResult.feedback.conceptsMissed.map((c, i) => (
-                                <span key={i} className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-semibold">
-                                  ✗ {c}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {evaluationResult.feedback.guidance && (
-                            <p className="text-xs text-slate-700 italic pt-1">
-                              Guidance: {evaluationResult.feedback.guidance}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Confidence Rating during attempt */}
+                  {/* Confidence Selector before submission */}
                   {!isAnswerSubmitted && (
                     <div className="pt-2 border-t border-slate-100">
                       <ConfidenceSelector value={confidence} onChange={setConfidence} />
                     </div>
                   )}
+
+                  {/* Immediate Feedback Explanation Panel */}
+                  {isAnswerSubmitted && feedbackMode === 'immediate' && evaluationResult && (
+                    <div
+                      className={`p-5 rounded-2xl border space-y-3 ${
+                        evaluationResult.isCorrect
+                          ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+                          : 'bg-amber-50/80 border-amber-200 text-amber-950'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 font-bold text-xs font-heading">
+                        {evaluationResult.isCorrect ? (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                        ) : (
+                          <XCircle className="w-5 h-5 text-amber-600" />
+                        )}
+                        <span>{evaluationResult.feedback?.summary}</span>
+                      </div>
+
+                      {evaluationResult.explanation && (
+                        <p className="text-xs leading-relaxed text-slate-800">
+                          {evaluationResult.explanation}
+                        </p>
+                      )}
+
+                      {evaluationResult.feedback?.conceptsMatched?.length > 0 && (
+                        <div className="text-[11px] text-emerald-900 flex flex-wrap gap-1 items-center pt-1">
+                          <span className="font-semibold">Concepts Identified:</span>
+                          {evaluationResult.feedback.conceptsMatched.map((c, i) => (
+                            <span key={i} className="bg-emerald-100 px-2 py-0.5 rounded text-[10px] font-bold">
+                              ✓ {c}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {/* Action Controls */}
-                <div className="flex items-center justify-between">
+                {/* Bottom Action Controls */}
+                <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
                   <span className="text-xs text-slate-400">
-                    Press <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border text-[10px] text-slate-600">Enter</kbd> to submit
+                    Question {currentIndex + 1} of {questions.length}
                   </span>
 
                   {!isAnswerSubmitted ? (
@@ -448,130 +541,179 @@ export default function PracticePage() {
                       type="button"
                       disabled={submittingAttempt}
                       onClick={handleSubmitAnswer}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm px-6 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer"
+                      className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
                     >
-                      {submittingAttempt ? 'Evaluating...' : 'Submit Answer'}
+                      {submittingAttempt ? 'Submitting...' : 'Submit Answer'}
                     </button>
                   ) : (
                     <button
                       type="button"
-                      onClick={handleNextQuestion}
-                      className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs sm:text-sm px-6 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer"
+                      onClick={() => handleNextQuestion()}
+                      className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                     >
-                      <span>{currentIndex === questions.length - 1 ? 'View Performance Summary' : 'Next Question'}</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <span>{currentIndex === questions.length - 1 ? 'Finish Test' : 'Next Question'}</span>
+                      <ChevronRight className="w-4 h-4" />
                     </button>
                   )}
                 </div>
               </div>
             )
           ) : (
-            /* Final Performance Summary Screen */
-            <div className="bg-white p-8 sm:p-10 rounded-3xl border border-slate-200 shadow-xl space-y-8">
-              <div className="text-center max-w-md mx-auto">
-                <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4">
-                  <Trophy className="w-7 h-7" />
+            /* COMPREHENSIVE TEST RESULTS SUMMARY (Section 7) */
+            <div className="space-y-6">
+              <div className="bg-white p-8 sm:p-10 rounded-3xl border border-slate-200 shadow-xl text-center space-y-6 max-w-xl mx-auto">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-700 text-white flex items-center justify-center mx-auto shadow-lg shadow-indigo-600/30">
+                  <Trophy className="w-8 h-8" />
                 </div>
-                <h2 className="text-2xl font-extrabold text-slate-900 font-heading">
-                  Practice Session Completed!
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                  Here is how you performed across the tested concepts.
-                </p>
-              </div>
 
-              {/* High-level stats */}
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                  <span className="text-xs text-slate-400 block">Overall Accuracy</span>
-                  <span className="text-2xl font-extrabold text-indigo-600 font-heading">
-                    {accuracyPercentage}%
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 block mb-1">
+                    Test Results Summary
                   </span>
+                  <h2 className="text-3xl font-extrabold text-slate-900 font-heading">
+                    {accuracyPercentage}% Score
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    You answered {correctAttemptsCount} of {attemptsHistory.length} questions correctly.
+                  </p>
                 </div>
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                  <span className="text-xs text-slate-400 block">Correct / Total</span>
-                  <span className="text-2xl font-extrabold text-slate-900 font-heading">
-                    {correctAttemptsCount} / {attemptsHistory.length}
-                  </span>
-                </div>
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                  <span className="text-xs text-slate-400 block">Avg Confidence</span>
-                  <span className="text-2xl font-extrabold text-amber-600 font-heading">
-                    {(
-                      attemptsHistory.reduce((a, b) => a + b.confidence, 0) /
-                      Math.max(1, attemptsHistory.length)
-                    ).toFixed(1)} / 5
-                  </span>
-                </div>
-              </div>
 
-              {/* Questions Needing Another Attempt */}
-              {missedQuestions.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-slate-900 font-heading">
-                      Questions Needing Attention ({missedQuestions.length})
-                    </h3>
-                    <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                      Scheduled in Revision Planner
+                {/* Strengths & Weaknesses Breakdown */}
+                <div className="grid grid-cols-2 gap-3 text-left">
+                  <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200">
+                    <span className="text-[11px] font-bold text-emerald-800 uppercase block mb-1.5">
+                      Strengths Identified
                     </span>
+                    {strengths.length > 0 ? (
+                      <ul className="text-xs space-y-1 text-emerald-950 font-medium">
+                        {strengths.map((s, i) => (
+                          <li key={i} className="truncate">✓ {s.topic} ({s.accuracy}%)</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <span className="text-xs text-emerald-700 italic">Continue practicing to build mastery.</span>
+                    )}
                   </div>
 
-                  <div className="space-y-2.5">
-                    {missedQuestions.map((att, i) => (
-                      <div
-                        key={i}
-                        className="p-4 rounded-xl border border-rose-200 bg-rose-50/30 text-xs space-y-1.5"
-                      >
-                        <div className="flex items-center justify-between font-semibold text-slate-800">
-                          <span>{att.question.topic}</span>
-                          <span className="text-rose-600">Incorrect</span>
+                  <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200">
+                    <span className="text-[11px] font-bold text-amber-800 uppercase block mb-1.5">
+                      Needs Improvement
+                    </span>
+                    {weaknesses.length > 0 ? (
+                      <ul className="text-xs space-y-1 text-amber-950 font-medium">
+                        {weaknesses.map((w, i) => (
+                          <li key={i} className="truncate">✗ {w.topic} ({w.accuracy}%)</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <span className="text-xs text-amber-700 italic">No weak topics detected! Excellent retention.</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 1-Click Flashcard Recommendation for Struggling Concepts */}
+                {weaknesses.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
+                    <div className="text-xs">
+                      <span className="font-bold text-indigo-900 block">Recommended Flashcard Reinforcement:</span>
+                      <span className="text-indigo-700">Practice weak concepts in flashcard active recall.</span>
+                    </div>
+                    <Link
+                      to={`/study?topic=${encodeURIComponent(weaknesses[0].topic)}`}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 inline-flex items-center gap-1.5"
+                    >
+                      <span>Study {weaknesses[0].topic}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={fetchQuestions}
+                    className="flex-1 py-3 px-4 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-50 cursor-pointer"
+                  >
+                    Retake Test
+                  </button>
+
+                  <Link
+                    to="/dashboard"
+                    className="flex-1 py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs inline-flex items-center justify-center gap-1.5"
+                  >
+                    <span>Return to Dashboard</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
+
+              {/* Detailed Incorrect Answers Review List (Section 7) */}
+              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="text-base font-bold text-slate-900 font-heading">
+                    Detailed Answers Review
+                  </h3>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowOnlyIncorrect(!showOnlyIncorrect)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                      showOnlyIncorrect
+                        ? 'border-rose-300 bg-rose-50 text-rose-800'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {showOnlyIncorrect ? 'Showing Incorrect Only' : 'Show Only Incorrect Answers'}
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {reviewList.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-5 rounded-2xl border space-y-3 ${
+                        item.isCorrect ? 'border-slate-200 bg-slate-50/50' : 'border-rose-200 bg-rose-50/30'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
+                          {item.question.topic}
+                        </span>
+                        <span className={`font-extrabold ${item.isCorrect ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {item.isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                        </span>
+                      </div>
+
+                      <p className="text-xs sm:text-sm font-bold text-slate-900">
+                        {item.question.questionText}
+                      </p>
+
+                      <div className="text-xs space-y-1">
+                        <div>
+                          <span className="text-slate-400">Your Answer: </span>
+                          <span className={item.isCorrect ? 'font-semibold text-emerald-800' : 'font-semibold text-rose-700'}>
+                            {item.submittedAnswer}
+                          </span>
                         </div>
-                        <p className="text-slate-900 font-medium">
-                          {att.question.questionText}
-                        </p>
-                        {att.correctAnswer && (
-                          <p className="text-slate-600">
-                            <strong>Reference:</strong> {att.correctAnswer}
+
+                        {!item.isCorrect && item.correctAnswer && (
+                          <div>
+                            <span className="text-slate-400">Correct Answer: </span>
+                            <span className="font-bold text-slate-800">
+                              {item.correctAnswer}
+                            </span>
+                          </div>
+                        )}
+
+                        {item.explanation && (
+                          <p className="text-slate-600 pt-1 text-[11px] leading-relaxed">
+                            Explanation: {item.explanation}
                           </p>
                         )}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-
-              {/* Recommended Next Steps */}
-              <div className="p-5 rounded-2xl bg-indigo-50/70 border border-indigo-200/80">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className="w-4 h-4 text-indigo-600" />
-                  <h4 className="text-xs font-bold text-indigo-950 font-heading">
-                    Adaptive Recommendation Engine: Next Steps
-                  </h4>
-                </div>
-                <p className="text-xs text-indigo-900 leading-relaxed">
-                  Based on this session, your retention probability has been updated. We recommend visiting the{' '}
-                  <strong className="font-semibold">Revision Planner</strong> to review{' '}
-                  {missedQuestions.length > 0 ? missedQuestions[0].question.topic : 'advanced modules'} using targeted active recall.
-                </p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={fetchQuestions}
-                  className="flex-1 py-3 px-4 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition-colors"
-                >
-                  Practice Another Set
-                </button>
-
-                <Link
-                  to="/planner"
-                  className="flex-1 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-md transition-all inline-flex items-center justify-center gap-2"
-                >
-                  <span>Open Revision Planner</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
               </div>
             </div>
           )}
