@@ -48,7 +48,7 @@ export default function CreateStudySetPage() {
 
   // Input Data
   const [title, setTitle] = useState('');
-  const [subject, setSubject] = useState('Operating Systems');
+  const [subject, setSubject] = useState('');
   const [pastedText, setPastedText] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const [youtubeUrl, setYoutubeUrl] = useState('');
@@ -60,9 +60,7 @@ export default function CreateStudySetPage() {
   const [error, setError] = useState('');
 
   // Generation Settings
-  const [requestedTypes, setRequestedTypes] = useState(['flashcards', 'mcqs', 'true_false', 'short_answer']);
   const [cardCount, setCardCount] = useState(5);
-  const [mcqCount, setMcqCount] = useState(4);
   const [generating, setGenerating] = useState(false);
 
   // Generated Items for Review & Editing (Steps 7 & 8)
@@ -193,14 +191,15 @@ export default function CreateStudySetPage() {
         text: extractedText,
         subject: subject.trim() || 'General Studies',
         title: title.trim() || 'Adaptive Study Set',
-        requestedTypes,
+        // Always generate all types so Practice Quiz gets questions too
+        requestedTypes: ['flashcards', 'mcqs', 'true_false', 'short_answer'],
         counts: {
           flashcards: cardCount,
-          mcqs: mcqCount,
+          mcqs: 4,
           true_false: 4,
           short_answer: 3,
         },
-        saveToDb: false, // PREVIEW MODE: allows student review & edits before saving!
+        saveToDb: false,
       });
 
       setGeneratedFlashcards(res.data.flashcards || []);
@@ -349,7 +348,7 @@ export default function CreateStudySetPage() {
                     required
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Operating Systems: Virtual Memory"
+                    placeholder="e.g. Web Development: CSS & Layouts"
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
@@ -361,7 +360,7 @@ export default function CreateStudySetPage() {
                     required
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    placeholder="e.g. Operating Systems"
+                    placeholder="e.g. Web Development, History, Biology"
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
@@ -589,102 +588,32 @@ export default function CreateStudySetPage() {
                 />
               </div>
 
-              {/* Output Configuration (Steps 4 & 5) */}
+              {/* Output Configuration — Flashcards only */}
               <div className="p-5 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-4">
                 <span className="text-xs font-bold uppercase tracking-wider text-indigo-900 block font-heading">
-                  Configure Generation Output
+                  Configure Flashcard Generation
                 </span>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-indigo-100 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={requestedTypes.includes('flashcards')}
-                      onChange={(e) => {
-                        const next = e.target.checked
-                          ? [...requestedTypes, 'flashcards']
-                          : requestedTypes.filter((t) => t !== 'flashcards');
-                        setRequestedTypes(next);
-                      }}
-                      className="accent-indigo-600 rounded"
-                    />
-                    <span className="font-semibold text-slate-800">Flashcards</span>
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Flashcard Target Count: <span className="text-indigo-700 font-bold">{cardCount}</span>
                   </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-indigo-100 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={requestedTypes.includes('mcqs')}
-                      onChange={(e) => {
-                        const next = e.target.checked
-                          ? [...requestedTypes, 'mcqs']
-                          : requestedTypes.filter((t) => t !== 'mcqs');
-                        setRequestedTypes(next);
-                      }}
-                      className="accent-indigo-600 rounded"
-                    />
-                    <span className="font-semibold text-slate-800">MCQ Quizzes</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-indigo-100 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={requestedTypes.includes('true_false')}
-                      onChange={(e) => {
-                        const next = e.target.checked
-                          ? [...requestedTypes, 'true_false']
-                          : requestedTypes.filter((t) => t !== 'true_false');
-                        setRequestedTypes(next);
-                      }}
-                      className="accent-indigo-600 rounded"
-                    />
-                    <span className="font-semibold text-slate-800">True / False</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-indigo-100 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={requestedTypes.includes('short_answer')}
-                      onChange={(e) => {
-                        const next = e.target.checked
-                          ? [...requestedTypes, 'short_answer']
-                          : requestedTypes.filter((t) => t !== 'short_answer');
-                        setRequestedTypes(next);
-                      }}
-                      className="accent-indigo-600 rounded"
-                    />
-                    <span className="font-semibold text-slate-800">Short Answer</span>
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">
-                      Flashcard Target Count: {cardCount}
-                    </label>
-                    <input
-                      type="range"
-                      min="3"
-                      max="15"
-                      value={cardCount}
-                      onChange={(e) => setCardCount(Number(e.target.value))}
-                      className="w-full accent-indigo-600 cursor-pointer"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">
-                      Practice MCQ Count: {mcqCount}
-                    </label>
-                    <input
-                      type="range"
-                      min="2"
-                      max="10"
-                      value={mcqCount}
-                      onChange={(e) => setMcqCount(Number(e.target.value))}
-                      className="w-full accent-indigo-600 cursor-pointer"
-                    />
+                  <input
+                    type="range"
+                    min="3"
+                    max="15"
+                    value={cardCount}
+                    onChange={(e) => setCardCount(Number(e.target.value))}
+                    className="w-full accent-indigo-600 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                    <span>3</span><span>15</span>
                   </div>
                 </div>
+
+                <p className="text-[11px] text-slate-500">
+                  MCQ, True/False, and Short Answer questions are also generated automatically and available in the <strong>Practice Quiz</strong> section.
+                </p>
               </div>
 
               <div className="flex items-center justify-between pt-2">
@@ -810,33 +739,6 @@ export default function CreateStudySetPage() {
                             className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 font-body"
                           />
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Generated MCQs Preview */}
-              {generatedMcqs.length > 0 && (
-                <div className="space-y-3 pt-4 border-t border-slate-200">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 font-heading block">
-                    Multiple Choice Questions ({generatedMcqs.length})
-                  </span>
-
-                  {generatedMcqs.map((mcq, idx) => (
-                    <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2 text-xs">
-                      <span className="font-bold text-slate-900 block">Q{idx + 1}: {mcq.question}</span>
-                      <div className="grid grid-cols-2 gap-2 text-slate-600">
-                        {(mcq.options || []).map((opt, oi) => (
-                          <div
-                            key={oi}
-                            className={`p-2 rounded-lg border ${
-                              opt === mcq.correctAnswer ? 'border-emerald-300 bg-emerald-50 text-emerald-900 font-bold' : 'border-slate-200 bg-slate-50'
-                            }`}
-                          >
-                            {opt} {opt === mcq.correctAnswer && '✓'}
-                          </div>
-                        ))}
                       </div>
                     </div>
                   ))}

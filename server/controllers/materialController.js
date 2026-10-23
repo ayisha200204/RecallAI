@@ -4,32 +4,35 @@ import { StudyMaterials, FlashcardDecks, Questions, StudyAttempts, RevisionTasks
 import { extractYouTubeVideoId, fetchYouTubeMetadata, fetchYouTubeTranscript } from '../services/youtubeService.js';
 
 /**
- * Helper to extract candidate topics from text
+ * Helper to dynamically extract candidate topics from text
  */
 function extractCandidateTopics(text, subject = 'General Concepts') {
   const candidateTopics = [];
-  const lower = text.toLowerCase();
-  const commonTopics = [
-    'Processes and Threads',
-    'CPU Scheduling',
-    'Deadlocks',
-    'Memory Management',
-    'Virtual Memory',
-    'File Systems',
-    'Concurrency',
-    'Networking',
-    'Data Structures',
-    'Algorithms',
-    'Machine Learning',
-    'System Design',
-    'Database Systems',
-  ];
-  commonTopics.forEach((t) => {
-    if (lower.includes(t.toLowerCase()) || lower.includes(t.split(' ')[0].toLowerCase())) {
-      candidateTopics.push(t);
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  for (const line of lines) {
+    // Markdown headings (# Title)
+    const headingMatch = line.match(/^#{1,4}\s+(.+)$/);
+    if (headingMatch && headingMatch[1].length < 40) {
+      candidateTopics.push(headingMatch[1].trim());
+      continue;
     }
-  });
-  return candidateTopics.length > 0 ? candidateTopics : [subject || 'General Concepts'];
+    // "What is X?" / "How does X work?"
+    const questionMatch = line.match(/^(?:What is|How does|Explain)\s+([^?:]+)[?:]/i);
+    if (questionMatch && questionMatch[1].length < 35) {
+      candidateTopics.push(questionMatch[1].trim());
+      continue;
+    }
+    // Term: Definition pattern
+    const colonMatch = line.match(/^([A-Z][A-Za-z0-9\s]{2,30}):\s+/);
+    if (colonMatch) {
+      candidateTopics.push(colonMatch[1].trim());
+      continue;
+    }
+  }
+
+  const unique = Array.from(new Set(candidateTopics)).filter((t) => t.length > 2);
+  return unique.length > 0 ? unique.slice(0, 8) : [subject?.trim() || 'General Concepts'];
 }
 
 /**

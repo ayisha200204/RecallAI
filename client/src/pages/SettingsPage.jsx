@@ -20,7 +20,7 @@ export default function SettingsPage() {
 
   const [primaryGoal, setPrimaryGoal] = useState(user?.studyGoals?.primaryGoal || 'University exams');
   const [targetSubjects, setTargetSubjects] = useState(
-    (user?.studyGoals?.targetSubjects || ['Operating Systems']).join(', ')
+    (user?.studyGoals?.targetSubjects || []).join(', ')
   );
   const [examDate, setExamDate] = useState(
     user?.studyGoals?.examDate ? user.studyGoals.examDate.split('T')[0] : ''
@@ -62,12 +62,12 @@ export default function SettingsPage() {
   };
 
   const handleResetDemo = async () => {
-    if (!confirm('This will reload the official Operating Systems demo curriculum and reset sample attempts. Proceed?')) {
+    if (!confirm('This will reset the demo workspace to a fresh clean state. Proceed?')) {
       return;
     }
     try {
       await demoLogin();
-      setMsg('Demo environment reset successfully with fresh Operating Systems sample data.');
+      setMsg('Demo workspace reset successfully to a clean state.');
     } catch (err) {
       setError('Failed to reset demo data.');
     }
@@ -146,7 +146,7 @@ export default function SettingsPage() {
                 type="text"
                 value={targetSubjects}
                 onChange={(e) => setTargetSubjects(e.target.value)}
-                placeholder="Operating Systems, Networks, Algorithms"
+                placeholder="e.g. Mathematics, Science, Web Development"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
               />
             </div>
@@ -201,13 +201,13 @@ export default function SettingsPage() {
                   Demo & Prototype Environment
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Reload the pre-configured Operating Systems curriculum and historical learning records.
+                  Reset the demo environment to a fresh clean workspace.
                 </p>
               </div>
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed">
-              If you wish to test fresh active recall tracking or demo features for reviewers, click below to re-seed the prepared Operating Systems curriculum (Processes & Threads, CPU Scheduling, Deadlocks, Memory Management) and reset the demo student state.
+              If you wish to test a clean onboarding experience or reset your demo account, click below to clear test records and start from a fresh slate.
             </p>
 
             <button
@@ -216,7 +216,7 @@ export default function SettingsPage() {
               className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>Reset & Reload Demo Environment</span>
+              <span>Reset to Clean Slate</span>
             </button>
           </div>
         </div>

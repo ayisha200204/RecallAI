@@ -163,7 +163,7 @@ export async function getAnalyticsOverview(req, res) {
         badge: 'Recommended',
       };
     } else if (topicsNeedingRevision > 0) {
-      const weakTopic = topicMastery.find((t) => t.needsRevision)?.topic || 'Operating Systems';
+      const weakTopic = topicMastery.find((t) => t.needsRevision)?.topic || 'Key Concepts';
       nextStepRecommendation = {
         title: `Strengthen Concept: ${weakTopic}`,
         actionText: 'Take Practice Quiz',

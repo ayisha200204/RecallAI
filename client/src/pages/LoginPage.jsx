@@ -80,7 +80,7 @@ export default function LoginPage() {
               Evaluating RecallAI?
             </span>
             <p className="text-[11px] text-indigo-800 mb-3">
-              Log in instantly with the prepared Operating Systems curriculum and historical learning records.
+              Log in instantly with a demo account to explore active recall and spaced repetition.
             </p>
             <button
               type="button"

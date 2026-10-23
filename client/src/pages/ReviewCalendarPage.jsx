@@ -273,7 +273,7 @@ export default function ReviewCalendarPage() {
                       </p>
 
                       <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-200/60">
-                        <span>Deck: {card.deckTitle || 'Operating Systems'}</span>
+                        <span>Deck: {card.deckTitle || 'General Studies'}</span>
                         {card.repetitions > 0 && (
                           <span className="font-semibold text-slate-600">
                             Rep #{card.repetitions}

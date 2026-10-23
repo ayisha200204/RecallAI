@@ -27,7 +27,7 @@ export default function VoiceStudyPage() {
 
   const [question, setQuestion] = useState(null);
   const [loadingQuestion, setLoadingQuestion] = useState(true);
-  const [topic, setTopic] = useState('Operating Systems');
+  const [topic, setTopic] = useState('all');
 
   // Speech Recognition state
   const [isRecording, setIsRecording] = useState(false);

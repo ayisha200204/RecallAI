@@ -21,7 +21,7 @@ export async function generateContent(req, res) {
     } = req.body;
 
     let sourceText = text;
-    let targetSubject = subject || 'Operating Systems';
+    let targetSubject = subject || 'General Studies';
     let targetTitle = title || 'Adaptive Study Deck';
 
     if (materialId) {

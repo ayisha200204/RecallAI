@@ -53,18 +53,6 @@ app.use((req, res) => {
 async function startServer() {
   await connectDB();
 
-  // If database has no users, seed the demo student automatically
-  try {
-    const store = getDb().store;
-    if (!store.users || store.users.length === 0) {
-      console.log('[RecallAI] No existing student data found. Seeding initial demo curriculum...');
-      await seedDemoData();
-      console.log('[RecallAI] Demo curriculum (Operating Systems) seeded successfully.');
-    }
-  } catch (seedErr) {
-    console.warn('[RecallAI] Seed notice:', seedErr.message);
-  }
-
   app.listen(PORT, () => {
     console.log(`=================================================`);
     console.log(`🚀 RecallAI Backend Server is running on port ${PORT}`);

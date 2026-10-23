@@ -28,8 +28,8 @@ export async function register(req, res) {
       email: email.toLowerCase().trim(),
       passwordHash,
       studyGoals: studyGoals || {
-        primaryGoal: 'University exams',
-        targetSubjects: ['Operating Systems'],
+        primaryGoal: 'General learning',
+        targetSubjects: [],
         preferredDurationMinutes: 30,
         dailyTargetQuestions: 15,
       },
@@ -39,86 +39,6 @@ export async function register(req, res) {
         theme: 'light',
       },
     });
-
-    // Automatically seed an initial high-quality study material & flashcards for seamless onboarding
-    try {
-      const sampleText = `Operating Systems Core Fundamentals
-Process Management: A process is an executing program with private address space. Threads are lightweight execution units within a process sharing code and heap.
-CPU Scheduling: Round Robin uses a fixed time quantum. Shortest Job First minimizes average waiting time.
-Deadlocks: Occur when Mutual Exclusion, Hold & Wait, No Preemption, and Circular Wait hold simultaneously.
-Memory Management: The TLB caches virtual-to-physical translations. Paging eliminates external fragmentation.`;
-
-      const material = await StudyMaterials.create({
-        userId: user._id,
-        title: 'Operating Systems — Core Architecture & Memory',
-        subject: 'Operating Systems',
-        extractedText: sampleText,
-        fileMetadata: {
-          fileName: 'os_core_fundamentals.pdf',
-          fileSize: 42800,
-          fileType: 'application/pdf',
-          pageCount: 4,
-          isScanned: false,
-        },
-        topics: ['Processes and Threads', 'CPU Scheduling', 'Deadlocks', 'Memory Management', 'Virtual Memory'],
-      });
-
-      const gen = await generateStudyMaterials({ text: sampleText, subject: 'Operating Systems' });
-
-      const deck = await FlashcardDecks.create({
-        userId: user._id,
-        materialId: material._id,
-        title: 'OS Essentials — Active Recall Deck',
-        subject: 'Operating Systems',
-        cards: gen.flashcards,
-        topicMetadata: gen.topics.map((t) => ({ name: t, cardCount: 1 })),
-      });
-
-      const questionsToSave = [
-        ...gen.mcqs.map((q) => ({
-          userId: user._id,
-          materialId: material._id,
-          deckId: deck._id,
-          questionText: q.question,
-          questionType: 'mcq',
-          options: q.options,
-          correctAnswer: q.correctAnswer,
-          explanation: q.explanation,
-          topic: q.topic,
-          difficulty: q.difficulty,
-        })),
-        ...gen.shortAnswers.map((sa) => ({
-          userId: user._id,
-          materialId: material._id,
-          deckId: deck._id,
-          questionText: sa.question,
-          questionType: 'short_answer',
-          referenceAnswer: sa.referenceAnswer,
-          expectedKeyConcepts: sa.expectedKeyConcepts,
-          topic: sa.topic,
-          difficulty: sa.difficulty,
-        })),
-      ];
-
-      await Questions.createMany(questionsToSave);
-
-      // Add starter revision task
-      await RevisionTasks.create({
-        userId: user._id,
-        topic: 'Deadlocks',
-        subject: 'Operating Systems',
-        materialId: material._id,
-        recommendedActivity: 'Review 4 Coffman conditions and Banker\'s algorithm',
-        activityType: 'flashcard',
-        priority: 'high',
-        dueDate: new Date(Date.now() + 24 * 3600 * 1000),
-        estimatedTimeMinutes: 10,
-        completed: false,
-        recommendationReason: 'Deadlocks require high conceptual recall before memory management.',
-      });
-    } catch (seedErr) {
-      console.warn('[Register] Starter material seed notice:', seedErr.message);
-    }
 
     const token = generateToken(user);
     const { passwordHash: _, ...safeUser } = user;

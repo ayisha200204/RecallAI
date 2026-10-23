@@ -111,7 +111,7 @@ export default function LandingPage() {
                     <div className="w-3 h-3 rounded-full bg-amber-400" />
                     <div className="w-3 h-3 rounded-full bg-emerald-400" />
                     <span className="text-xs font-semibold text-slate-600 ml-2">
-                      Operating Systems — Finals Prep
+                      Study Deck — Active Recall
                     </span>
                   </div>
                   <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
@@ -141,7 +141,7 @@ export default function LandingPage() {
                     >
                       <div className="flex items-center justify-between text-xs text-slate-500">
                         <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-                          Deadlocks
+                          Cognitive Science
                         </span>
                         <span className="text-[11px] flex items-center gap-1 text-slate-400 group-hover:text-indigo-600 transition-colors">
                           <RotateCcw className="w-3 h-3" /> Click to flip
@@ -151,7 +151,7 @@ export default function LandingPage() {
                       <div className="my-2">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Question</span>
                         <p className="text-sm font-semibold text-slate-900 mt-1">
-                          What are the four Coffman conditions necessary for a deadlock to occur?
+                          What is the testing effect in active recall and long-term memory?
                         </p>
                       </div>
 
@@ -182,7 +182,7 @@ export default function LandingPage() {
 
                       <div className="my-1">
                         <p className="text-xs font-medium text-slate-800 leading-relaxed">
-                          1. Mutual Exclusion, 2. Hold and Wait, 3. No Preemption, 4. Circular Wait. All four must hold simultaneously.
+                          Actively retrieving information from memory produces stronger and longer-lasting retention compared to passive rereading or review.
                         </p>
                       </div>
 

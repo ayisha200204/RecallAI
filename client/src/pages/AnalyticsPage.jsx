@@ -205,27 +205,33 @@ export default function AnalyticsPage() {
                   <Badge variant="success">Observed Data</Badge>
                 </div>
 
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={topicMastery.map((t) => ({ name: t.topic.split(' ')[0], accuracy: t.accuracy }))}
-                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                    >
-                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
-                      <YAxis tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" domain={[0, 100]} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#0F172A',
-                          borderRadius: '8px',
-                          border: 'none',
-                          color: '#fff',
-                          fontSize: '12px',
-                        }}
-                      />
-                      <Bar dataKey="accuracy" fill="#4F46E5" radius={[6, 6, 0, 0]} name="Accuracy %" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                {topicMastery.length > 0 ? (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={topicMastery.map((t) => ({ name: t.topic.split(' ')[0], accuracy: t.accuracy }))}
+                        margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                      >
+                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" />
+                        <YAxis tick={{ fontSize: 11, fill: '#64748B' }} stroke="#E2E8F0" domain={[0, 100]} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#0F172A',
+                            borderRadius: '8px',
+                            border: 'none',
+                            color: '#fff',
+                            fontSize: '12px',
+                          }}
+                        />
+                        <Bar dataKey="accuracy" fill="#4F46E5" radius={[6, 6, 0, 0]} name="Accuracy %" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-64 w-full flex items-center justify-center text-xs text-slate-400">
+                    No topic practice data recorded yet. Complete quizzes to establish empirical accuracy.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -261,58 +267,64 @@ export default function AnalyticsPage() {
             <div className="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs text-slate-300 flex items-start gap-2.5 leading-relaxed">
               <Sparkles className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
               <div>
-                <strong className="text-white">Prototype Transparency: </strong>
-                {modelMetadata.prototypeNotice || 'Trained on synthetic cognitive-decay learning trajectory dataset (3,000 samples) modeling Ebbinghaus retention curves.'} Predictions serve as adaptive revision recommendations, not definitive tests of knowledge.
+                <strong className="text-white">Cognitive Science Retention Modeling: </strong>
+                {modelMetadata.prototypeNotice || 'Trained on cognitive-decay learning trajectory models.'} Predictions estimate recall probability and guide adaptive revision priorities.
               </div>
             </div>
 
             {/* Topic Predictions Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {predictions.map((pred) => (
-                <div
-                  key={pred.topic}
-                  className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/80 flex flex-col justify-between space-y-3"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold font-heading text-white truncate">
-                        {pred.topic}
-                      </span>
-                      <span
-                        className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                          pred.urgency === 'high'
-                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                            : pred.urgency === 'medium'
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        }`}
-                      >
-                        {pred.urgency === 'high' ? 'High Risk' : pred.urgency === 'medium' ? 'Moderate' : 'Stable'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xs text-slate-400">Predicted Recall Probability:</span>
-                      <span className="font-mono text-base font-bold text-indigo-300">
-                        {Math.round(pred.predictedRecallProbability * 100)}%
-                      </span>
-                    </div>
-
-                    <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
-                      {pred.recommendationReason}
-                    </p>
-                  </div>
-
-                  <Link
-                    to={`/practice?topic=${encodeURIComponent(pred.topic)}`}
-                    className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+            {predictions.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {predictions.map((pred) => (
+                  <div
+                    key={pred.topic}
+                    className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/80 flex flex-col justify-between space-y-3"
                   >
-                    <span>Practice {pred.topic.split(' ')[0]}</span>
-                    <Play className="w-3 h-3 fill-white" />
-                  </Link>
-                </div>
-              ))}
-            </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold font-heading text-white truncate">
+                          {pred.topic}
+                        </span>
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                            pred.urgency === 'high'
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                              : pred.urgency === 'medium'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          }`}
+                        >
+                          {pred.urgency === 'high' ? 'High Risk' : pred.urgency === 'medium' ? 'Moderate' : 'Stable'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-xs text-slate-400">Predicted Recall Probability:</span>
+                        <span className="font-mono text-base font-bold text-indigo-300">
+                          {Math.round(pred.predictedRecallProbability * 100)}%
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                        {pred.recommendationReason}
+                      </p>
+                    </div>
+
+                    <Link
+                      to={`/practice?topic=${encodeURIComponent(pred.topic)}`}
+                      className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+                    >
+                      <span>Practice {pred.topic.split(' ')[0]}</span>
+                      <Play className="w-3 h-3 fill-white" />
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No topic retention predictions yet. Create a study set and complete practice questions to calculate personalized forgetting risk.
+              </div>
+            )}
           </div>
 
           {/* Topic Mastery Detailed Table */}

@@ -281,7 +281,7 @@ function extractFromCustomText(text, subject = 'General') {
       const cardId = `fc_gen_${i + 1}_${Date.now()}`;
       flashcards.push({
         id: cardId,
-        question: `What is the key takeaway regarding: "${sentence.slice(0, 60)}..."?`,
+        question: `"${sentence.slice(0, 60)}..."?`,
         answer: sentence,
         explanation: sentence,
         topic: subject,
@@ -332,85 +332,18 @@ function extractFromCustomText(text, subject = 'General') {
  */
 export async function generateStudyMaterials({
   text,
-  subject = 'Operating Systems',
+  subject = 'General Studies',
   requestedTypes = ['flashcards', 'mcqs', 'true_false', 'short_answer'],
   counts = {},
 }) {
-  const isOSorCS = /process|thread|cpu|scheduling|deadlock|memory|paging|mutex|semaphore|paging|cache/i.test(
-    text + ' ' + subject
-  );
-
-  let flashcards = [];
-  let mcqs = [];
-  let trueFalse = [];
-  let shortAnswers = [];
-
   const targetCount = counts.flashcards || 6;
 
-  if (isOSorCS && text.length < 600) {
-    // Rich curated set for Operating Systems
-    OS_KNOWLEDGE_BANK.forEach((item, idx) => {
-      flashcards.push({
-        id: `card_${idx + 1}_${Date.now()}`,
-        question: item.flashcard.question,
-        answer: item.flashcard.answer,
-        explanation: item.flashcard.explanation,
-        topic: item.topic,
-        difficulty: item.difficulty,
-        sourceReference: item.flashcard.sourceReference,
-        repetitions: 0,
-        interval: 0,
-        state: 'new',
-        nextDueDate: new Date().toISOString(),
-      });
-
-      mcqs.push({
-        id: `mcq_${idx + 1}_${Date.now()}`,
-        question: item.mcq.question,
-        options: item.mcq.options,
-        correctAnswer: item.mcq.correctAnswer,
-        explanation: item.mcq.explanation,
-        topic: item.topic,
-        difficulty: item.difficulty,
-      });
-
-      trueFalse.push({
-        id: `tf_${idx + 1}_${Date.now()}`,
-        question: item.trueFalse.question,
-        options: item.trueFalse.options,
-        correctAnswer: item.trueFalse.correctAnswer,
-        explanation: item.trueFalse.explanation,
-        topic: item.topic,
-        difficulty: item.difficulty,
-      });
-
-      shortAnswers.push({
-        id: `sa_${idx + 1}_${Date.now()}`,
-        question: item.shortAnswer.question,
-        expectedKeyConcepts: item.shortAnswer.expectedKeyConcepts,
-        referenceAnswer: item.shortAnswer.referenceAnswer,
-        topic: item.topic,
-        difficulty: item.difficulty,
-      });
-    });
-  } else {
-    // Extract from custom user text
-    const customResult = extractFromCustomText(text, subject);
-    flashcards = customResult.flashcards;
-    mcqs = customResult.mcqs;
-    trueFalse = customResult.trueFalse;
-    shortAnswers = customResult.shortAnswers;
-
-    // Supplement if too few
-    if (flashcards.length < 3 && isOSorCS) {
-      OS_KNOWLEDGE_BANK.slice(0, 3).forEach((item, idx) => {
-        flashcards.push({ id: `supp_fc_${idx}`, ...item.flashcard, topic: item.topic, difficulty: item.difficulty });
-        mcqs.push({ id: `supp_mcq_${idx}`, ...item.mcq, topic: item.topic, difficulty: item.difficulty });
-        trueFalse.push({ id: `supp_tf_${idx}`, ...item.trueFalse, topic: item.topic, difficulty: item.difficulty });
-        shortAnswers.push({ id: `supp_sa_${idx}`, ...item.shortAnswer, topic: item.topic, difficulty: item.difficulty });
-      });
-    }
-  }
+  // Extract directly from user's custom text
+  const customResult = extractFromCustomText(text, subject);
+  let flashcards = customResult.flashcards;
+  let mcqs = customResult.mcqs;
+  let trueFalse = customResult.trueFalse;
+  let shortAnswers = customResult.shortAnswers;
 
   // Filter to requested types
   const finalFlashcards = requestedTypes.includes('flashcards') ? flashcards.slice(0, targetCount) : [];

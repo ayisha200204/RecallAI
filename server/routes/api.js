@@ -67,6 +67,7 @@ router.get('/study/calendar', authenticateToken, studyCtrl.getReviewCalendar);
 router.get('/study/deck/:id/session', authenticateToken, studyCtrl.getDeckStudySession);
 
 // Practice & Active Recall Quiz
+router.get('/practice/topics', authenticateToken, practiceCtrl.getPracticeTopics);
 router.get('/practice/questions', authenticateToken, practiceCtrl.getPracticeQuestions);
 router.post('/practice/attempt', authenticateToken, practiceCtrl.submitQuestionAttempt);
 router.post('/practice/session', authenticateToken, practiceCtrl.completePracticeSession);

@@ -35,7 +35,7 @@ export default function RegisterPage() {
     try {
       await register(name, email, password, {
         primaryGoal,
-        targetSubjects: ['Operating Systems'],
+        targetSubjects: [],
         preferredDurationMinutes: 30,
         dailyTargetQuestions: 15,
       });

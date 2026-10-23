@@ -37,6 +37,9 @@ export default function PracticePage() {
   const [difficultyFilter, setDifficultyFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all'); // 'all', 'mcq', 'true_false', 'short_answer'
 
+  // Dynamic topics from the user's own questions
+  const [availableTopics, setAvailableTopics] = useState([]);
+
   // Test Mode Settings: 'immediate' | 'end_of_test'
   const [feedbackMode, setFeedbackMode] = useState('immediate');
   const [timedMode, setTimedMode] = useState(false);
@@ -60,6 +63,13 @@ export default function PracticePage() {
   // Overall session results
   const [attemptsHistory, setAttemptsHistory] = useState([]);
   const [showOnlyIncorrect, setShowOnlyIncorrect] = useState(false);
+
+  // Fetch distinct topics from user's own questions on mount
+  useEffect(() => {
+    api.get('/practice/topics')
+      .then((res) => setAvailableTopics(res.data.topics || []))
+      .catch(() => setAvailableTopics([]));
+  }, []);
 
   const fetchQuestions = async () => {
     setLoading(true);
@@ -277,11 +287,9 @@ export default function PracticePage() {
                   className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
                 >
                   <option value="all">All Topics</option>
-                  <option value="Processes and Threads">Processes and Threads</option>
-                  <option value="CPU Scheduling">CPU Scheduling</option>
-                  <option value="Deadlocks">Deadlocks</option>
-                  <option value="Memory Management">Memory Management</option>
-                  <option value="Virtual Memory">Virtual Memory</option>
+                  {availableTopics.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
                 </select>
 
                 <select

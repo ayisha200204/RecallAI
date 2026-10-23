@@ -81,9 +81,8 @@ function MotionCard({
                   e.stopPropagation();
                   onReadAloud(card?.question);
                 }}
-                className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                  ttsPlaying ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'
-                }`}
+                className={`p-2 rounded-xl transition-colors cursor-pointer ${ttsPlaying ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'
+                  }`}
                 title="Read question aloud"
               >
                 <Volume2 className="w-4 h-4" />
@@ -133,9 +132,8 @@ function MotionCard({
                   e.stopPropagation();
                   onReadAloud(`${card?.answer}. ${card?.explanation || ''}`);
                 }}
-                className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                  ttsPlaying ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'
-                }`}
+                className={`p-2 rounded-xl transition-colors cursor-pointer ${ttsPlaying ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'
+                  }`}
                 title="Read answer aloud"
               >
                 <Volume2 className="w-4 h-4" />
@@ -201,12 +199,12 @@ export default function FlashcardStudyPage() {
   // Automatic Play Mode Settings & State
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
   const [autoPlayState, setAutoPlayState] = useState('paused'); // 'playing', 'paused', 'waiting_rating'
-  const [autoTimer, setAutoTimer] = useState(10); // current timer in seconds
-  const [autoTimerMax, setAutoTimerMax] = useState(10);
+  const [autoTimer, setAutoTimer] = useState(15); // current timer in seconds
+  const [autoTimerMax, setAutoTimerMax] = useState(15);
   const [autoSettings, setAutoSettings] = useState({
-    thinkingTimeSeconds: 10,
+    thinkingTimeSeconds: 15,
     answerTimeSeconds: 8,
-    ratingTimeoutSeconds: 15,
+    ratingTimeoutSeconds: 10,
     speakQuestions: false,
     speakAnswers: false,
     autoAdvanceAfterRating: true,
@@ -341,7 +339,7 @@ export default function FlashcardStudyPage() {
   }, []);
 
   // Advance to next card or finish session
-  const advanceToNext = useCallback(() => {
+  const advanceToNext = useCallback((keepAutoPlaying = false) => {
     setIsFlipped(false);
     setVoiceTranscript('');
     setVoiceEvaluation(null);
@@ -350,6 +348,11 @@ export default function FlashcardStudyPage() {
     if (currentIndex < cards.length - 1) {
       setDirection(1);
       setCurrentIndex((i) => i + 1);
+      // Auto-resume the timer for the next card if we were in auto-play mode
+      if (keepAutoPlaying) {
+        setIsAutoPlaying(true);
+        setAutoPlayState('playing');
+      }
     } else {
       setIsCompleted(true);
       setIsAutoPlaying(false);
@@ -369,7 +372,7 @@ export default function FlashcardStudyPage() {
         correctCount: understoodCount,
         durationSeconds: 120,
         topicsCovered: Array.from(new Set(cards.map((c) => c.topic))),
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [currentIndex, cards, cardResponses, deck]);
 
@@ -377,6 +380,9 @@ export default function FlashcardStudyPage() {
   const handleRating = async (rating) => {
     if (!currentCard || isSubmitting) return;
     setIsSubmitting(true);
+
+    // Clear the rating countdown timer immediately so it doesn't fire after advance
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
 
     try {
       // 1. Send review to backend SRS service
@@ -394,8 +400,9 @@ export default function FlashcardStudyPage() {
         [currentCard.id]: { rating, timestamp: new Date().toISOString() },
       }));
 
-      // 3. Advance to next card
-      advanceToNext();
+      // 3. Advance — if in auto mode, resume timer for next card automatically
+      const wasAutoPlaying = studyMode === 'auto';
+      advanceToNext(wasAutoPlaying);
     } catch (err) {
       console.error('Submit rating error:', err);
     } finally {
@@ -467,9 +474,7 @@ export default function FlashcardStudyPage() {
           setAutoTimer((prev) => {
             if (prev <= 1) {
               clearInterval(timerIntervalRef.current);
-              // CRITICAL SECTION 6.C RULE:
-              // When rating timer expires without user action, PAUSE immediately!
-              // Keep answer & rating buttons visible, show clear prompt, do NOT auto-rate, do NOT skip, do NOT advance!
+              // Rating timer expired without user action — PAUSE so they can still choose
               setIsAutoPlaying(false);
               setAutoPlayState('paused_waiting_rating');
               stopSpeech();
@@ -640,10 +645,10 @@ export default function FlashcardStudyPage() {
   }
 
   const previews = currentCard?.intervalPreviews || {
-    again: '< 10m',
-    hard: '1d',
-    good: '3d',
-    easy: '7d',
+    again: '10m', // relearning step (~10 minutes) — matches SRS_CONFIG.INTERVALS.AGAIN_MINUTES
+    hard: '1d',   // recalled with difficulty — matches SRS_CONFIG.INTERVALS.HARD_DAYS
+    good: '3d',   // standard first interval — matches SRS_CONFIG.INTERVALS.GOOD_INITIAL_DAYS
+    easy: '7d',   // effortless recall — matches SRS_CONFIG.INTERVALS.EASY_INITIAL_DAYS
   };
 
   return (
@@ -653,7 +658,7 @@ export default function FlashcardStudyPage() {
       <main className="flex-1 flex flex-col min-w-0">
         <Header
           title={deck?.title || 'Adaptive Flashcards'}
-          subtitle={`Topic: ${currentCard?.topic || 'Operating Systems'} • Spaced Repetition Session`}
+          subtitle={`Topic: ${currentCard?.topic || deck?.subject || 'General'} • Spaced Repetition Session`}
           actionButton={
             <div className="flex items-center gap-2">
               <button
@@ -695,11 +700,10 @@ export default function FlashcardStudyPage() {
                   setIsAutoPlaying(false);
                   stopSpeech();
                 }}
-                className={`flex-1 sm:flex-none px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  studyMode === 'silent'
-                    ? 'bg-white text-indigo-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${studyMode === 'silent'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Silent Recall
               </button>
@@ -710,11 +714,10 @@ export default function FlashcardStudyPage() {
                   setIsAutoPlaying(true);
                   setAutoPlayState('playing');
                 }}
-                className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  studyMode === 'auto'
-                    ? 'bg-white text-indigo-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${studyMode === 'auto'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <FastForward className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Auto Play</span>
@@ -726,11 +729,10 @@ export default function FlashcardStudyPage() {
                   setIsAutoPlaying(false);
                   stopSpeech();
                 }}
-                className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  studyMode === 'voice'
-                    ? 'bg-white text-indigo-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${studyMode === 'voice'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <Mic className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Voice Recall</span>
@@ -830,10 +832,10 @@ export default function FlashcardStudyPage() {
                         {autoPlayState === 'thinking'
                           ? 'Question Thinking Timer'
                           : autoPlayState === 'waiting_rating'
-                          ? 'Waiting for Rating'
-                          : autoPlayState === 'paused_waiting_rating'
-                          ? 'Session Paused: Rate to Continue'
-                          : 'Paused'}
+                            ? 'Waiting for Rating'
+                            : autoPlayState === 'paused_waiting_rating'
+                              ? 'Session Paused: Rate to Continue'
+                              : 'Paused'}
                       </span>
                       <span className="text-sm font-extrabold font-heading">
                         {autoPlayState === 'paused_waiting_rating'
@@ -921,11 +923,10 @@ export default function FlashcardStudyPage() {
                           }
                         }
                       }}
-                      className={`px-5 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-xs transition-all cursor-pointer ${
-                        isVoiceRecording
-                          ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
-                          : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                      }`}
+                      className={`px-5 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-xs transition-all cursor-pointer ${isVoiceRecording
+                        ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                        }`}
                     >
                       {isVoiceRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                       <span>{isVoiceRecording ? 'Stop Recording' : 'Speak Answer'}</span>
@@ -1105,9 +1106,9 @@ export default function FlashcardStudyPage() {
                           <span className="text-xs font-extrabold uppercase tracking-wider text-rose-700">
                             Again (1)
                           </span>
-                          <span className="text-[11px] font-semibold text-rose-600/90">
-                            {previews.again}
-                          </span>
+                          {/* <span className="text-[11px] font-semibold text-rose-600/90">
+                            {previews.hard}
+                          </span> */}
                           <span className="text-[10px] text-rose-800/60 hidden sm:block">
                             Forgot answer
                           </span>
@@ -1122,9 +1123,9 @@ export default function FlashcardStudyPage() {
                           <span className="text-xs font-extrabold uppercase tracking-wider text-amber-700">
                             Hard (2)
                           </span>
-                          <span className="text-[11px] font-semibold text-amber-600/90">
+                          {/* <span className="text-[11px] font-semibold text-amber-600/90">
                             {previews.hard}
-                          </span>
+                          </span> */}
                           <span className="text-[10px] text-amber-800/60 hidden sm:block">
                             Recalled with effort
                           </span>
@@ -1139,9 +1140,9 @@ export default function FlashcardStudyPage() {
                           <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-700">
                             Good (3)
                           </span>
-                          <span className="text-[11px] font-semibold text-indigo-600/90">
+                          {/* <span className="text-[11px] font-semibold text-indigo-600/90">
                             {previews.good}
-                          </span>
+                          </span> */}
                           <span className="text-[10px] text-indigo-800/60 hidden sm:block">
                             Standard recall
                           </span>
@@ -1156,9 +1157,9 @@ export default function FlashcardStudyPage() {
                           <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-700">
                             Easy (4)
                           </span>
-                          <span className="text-[11px] font-semibold text-emerald-600/90">
+                          {/* <span className="text-[11px] font-semibold text-emerald-600/90">
                             {previews.easy}
-                          </span>
+                          </span> */}
                           <span className="text-[10px] text-emerald-800/60 hidden sm:block">
                             Effortless memory
                           </span>

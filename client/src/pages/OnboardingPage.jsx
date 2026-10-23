@@ -23,7 +23,7 @@ export default function OnboardingPage() {
 
   const [primaryGoal, setPrimaryGoal] = useState(user?.studyGoals?.primaryGoal || 'University exams');
   const [subjectsInput, setSubjectsInput] = useState(
-    (user?.studyGoals?.targetSubjects || ['Operating Systems']).join(', ')
+    (user?.studyGoals?.targetSubjects || []).join(', ')
   );
   const [examDate, setExamDate] = useState(
     user?.studyGoals?.examDate ? user.studyGoals.examDate.split('T')[0] : ''
@@ -43,7 +43,7 @@ export default function OnboardingPage() {
 
       await updateGoals({
         primaryGoal,
-        targetSubjects: subjects.length > 0 ? subjects : ['Operating Systems'],
+        targetSubjects: subjects,
         examDate: examDate ? new Date(examDate).toISOString() : null,
         preferredDurationMinutes: duration,
         dailyTargetQuestions: dailyQuestions,
@@ -118,11 +118,11 @@ export default function OnboardingPage() {
               type="text"
               value={subjectsInput}
               onChange={(e) => setSubjectsInput(e.target.value)}
-              placeholder="Operating Systems, Computer Networks, Database Systems"
+              placeholder="e.g. Mathematics, Science, Literature, History"
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
             />
             <span className="text-[11px] text-slate-400 mt-1 block">
-              We've pre-loaded a comprehensive Operating Systems study pack for you.
+              Enter your active subjects to personalize your study recommendations.
             </span>
           </div>
 

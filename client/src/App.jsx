@@ -10,7 +10,6 @@ import DashboardPage from './pages/DashboardPage';
 import MaterialsPage from './pages/MaterialsPage';
 import FlashcardStudyPage from './pages/FlashcardStudyPage';
 import PracticePage from './pages/PracticePage';
-import VoiceStudyPage from './pages/VoiceStudyPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import PlannerPage from './pages/PlannerPage';
 import SettingsPage from './pages/SettingsPage';
@@ -113,11 +112,7 @@ export default function App() {
           />
           <Route
             path="/voice-study"
-            element={
-              <ProtectedRoute>
-                <VoiceStudyPage />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/dashboard" replace />}
           />
           <Route
             path="/progress"
@@ -129,11 +124,7 @@ export default function App() {
           />
           <Route
             path="/planner"
-            element={
-              <ProtectedRoute>
-                <PlannerPage />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/progress" replace />}
           />
           <Route
             path="/settings"

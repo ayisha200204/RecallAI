@@ -374,10 +374,13 @@ export async function getDueReviewsSummary(userId, deckId = null) {
         subject: deck.subject,
       };
 
-      const hasBeenReviewed = Boolean(card.lastReviewedAt && card.repetitions > 0);
+      // A card has been reviewed if it has a lastReviewedAt timestamp OR its state is not 'new'.
+      // NOTE: cards rated "Again" have repetitions reset to 0 but still have lastReviewedAt and
+      // state='relearning', so we must NOT rely on repetitions > 0 to detect reviewed cards.
+      const hasBeenReviewed = Boolean(card.lastReviewedAt || (card.state && card.state !== 'new'));
       const dueDate = card.nextDueDate ? new Date(card.nextDueDate) : null;
 
-      if (!hasBeenReviewed || card.state === 'new' || !dueDate) {
+      if (!hasBeenReviewed || !dueDate) {
         newCards.push(enrichedCard);
       } else if (dueDate < startOfToday) {
         overdueCards.push(enrichedCard);
@@ -407,14 +410,18 @@ export async function getDueReviewsSummary(userId, deckId = null) {
       for (const card of deck.cards || []) {
         if (card.nextDueDate) {
           const cardDue = new Date(card.nextDueDate);
+          // Include card in calendar if it has been reviewed before (lastReviewedAt or non-new state).
+          // Cards rated "Again" have repetitions=0 but state='relearning' and a valid nextDueDate.
+          const cardHasBeenReviewed = Boolean(card.lastReviewedAt || (card.state && card.state !== 'new'));
+          if (!cardHasBeenReviewed) continue;
           if (i === 0) {
-            // Today includes overdue cards
-            if (cardDue <= dayEnd && card.repetitions > 0) {
+            // Today: include all reviewed cards due today or overdue
+            if (cardDue <= dayEnd) {
               cardsDueOnDay.push({ ...card, deckId: deck._id, deckTitle: deck.title });
             }
           } else {
             const dayStart = new Date(targetDay.getFullYear(), targetDay.getMonth(), targetDay.getDate(), 0, 0, 0);
-            if (cardDue >= dayStart && cardDue <= dayEnd && card.repetitions > 0) {
+            if (cardDue >= dayStart && cardDue <= dayEnd) {
               cardsDueOnDay.push({ ...card, deckId: deck._id, deckTitle: deck.title });
             }
           }

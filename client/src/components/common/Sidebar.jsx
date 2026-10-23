@@ -5,7 +5,6 @@ import {
   FileText,
   Layers,
   CheckCircle2,
-  Mic,
   BarChart3,
   CalendarCheck,
   Calendar,
@@ -25,9 +24,7 @@ const NAV_ITEMS = [
   { name: 'Review Calendar', to: '/calendar', icon: Calendar, badge: 'SRS' },
   { name: 'My Study Materials', to: '/materials', icon: FileText },
   { name: 'Practice Quiz', to: '/practice', icon: CheckCircle2 },
-  { name: 'Voice Study', to: '/voice-study', icon: Mic, badge: 'Voice AI' },
   { name: 'My Progress', to: '/progress', icon: BarChart3 },
-  { name: 'Revision Planner', to: '/planner', icon: CalendarCheck },
   { name: 'Settings', to: '/settings', icon: Settings },
 ];
 

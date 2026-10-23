@@ -31,6 +31,29 @@ export async function getPracticeQuestions(req, res) {
   }
 }
 
+/**
+ * Return all distinct topics that the authenticated user has questions for.
+ * Used to populate the topic filter dropdown dynamically.
+ */
+export async function getPracticeTopics(req, res) {
+  try {
+    const userId = req.user._id || req.user.id;
+    const allQuestions = await Questions.find({ userId });
+
+    const topicSet = new Set();
+    allQuestions.forEach((q) => {
+      if (q.topic && q.topic.trim()) {
+        topicSet.add(q.topic.trim());
+      }
+    });
+
+    const topics = Array.from(topicSet).sort((a, b) => a.localeCompare(b));
+    res.json({ topics });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to retrieve topics.' });
+  }
+}
+
 export async function submitQuestionAttempt(req, res) {
   try {
     const userId = req.user._id || req.user.id;

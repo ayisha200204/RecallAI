@@ -39,8 +39,39 @@ async function run() {
   const decksRes = await fetch(`${BASE_URL}/decks`, { headers: authHeaders });
   const decksData = await decksRes.json();
   console.log(`✔ Found ${decksData.decks?.length || 0} decks.`);
-  const deck = decksData.decks[0];
-  console.log(`✔ Deck: "${deck.title}", Cards = ${deck.cardCount}, Due = ${deck.dueCount}`);
+  let deck = (decksData.decks || [])[0];
+
+  if (!deck) {
+    console.log('✔ Workspace is fresh as expected. Creating initial study set for E2E validation...');
+    const createRes = await fetch(`${BASE_URL}/decks`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        title: 'Web Architecture Fundamentals',
+        subject: 'Web Development',
+        cards: [
+          {
+            id: 'fc_demo_1',
+            question: 'What is the role of HTTP status code 200?',
+            answer: 'It indicates that the HTTP request succeeded.',
+            topic: 'Web Development',
+            difficulty: 'easy',
+          },
+          {
+            id: 'fc_demo_2',
+            question: 'What is the Document Object Model (DOM)?',
+            answer: 'A programming interface for web documents representing the page structure as nodes and objects.',
+            topic: 'Web Development',
+            difficulty: 'medium',
+          },
+        ],
+      }),
+    });
+    const createdData = await createRes.json();
+    deck = createdData.deck;
+  }
+
+  console.log(`✔ Deck: "${deck.title}", Cards = ${deck.cardCount || deck.cards?.length}`);
 
   // 5. Get Deck Study Session (/study/deck/:id/session)
   const sessionRes = await fetch(`${BASE_URL}/study/deck/${deck._id}/session?filter=all`, { headers: authHeaders });
