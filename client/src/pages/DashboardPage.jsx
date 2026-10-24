@@ -208,8 +208,8 @@ export default function DashboardPage() {
                   {srs.counts.overdue > 0
                     ? `You have ${srs.counts.overdue} overdue cards awaiting review. Practicing them now prevents memory decay along the forgetting curve.`
                     : srs.counts.dueToday > 0
-                    ? `${srs.counts.dueToday} flashcards are at their optimal spacing interval today. Complete them to advance their intervals.`
-                    : 'You have zero overdue cards today. Learn new cards or explore practice tests to build your mastery.'}
+                      ? `${srs.counts.dueToday} flashcards are at their optimal spacing interval today. Complete them to advance their intervals.`
+                      : 'You have zero overdue cards today. Learn new cards or explore practice tests to build your mastery.'}
                 </p>
 
                 {/* Breakdown counts */}
@@ -459,15 +459,14 @@ export default function DashboardPage() {
                       <div className="flex items-center justify-between text-xs mb-1">
                         <span className="font-bold text-slate-900 font-heading truncate">{tm.topic}</span>
                         <span
-                          className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded ${
-                            tm.status === 'mastered'
+                          className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded ${tm.status === 'mastered'
                               ? 'bg-emerald-100 text-emerald-800'
                               : tm.status === 'proficient'
-                              ? 'bg-indigo-100 text-indigo-800'
-                              : tm.status === 'insufficient_data'
-                              ? 'bg-slate-200 text-slate-600'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
+                                ? 'bg-indigo-100 text-indigo-800'
+                                : tm.status === 'insufficient_data'
+                                  ? 'bg-slate-200 text-slate-600'
+                                  : 'bg-amber-100 text-amber-800'
+                            }`}
                         >
                           {tm.level}
                         </span>

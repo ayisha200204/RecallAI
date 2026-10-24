@@ -78,7 +78,7 @@ export default function AnalyticsPage() {
 
         <div className="p-6 sm:p-8 space-y-8 max-w-7xl mx-auto w-full">
           {/* Scientific Distinction Banner */}
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          {/* <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2">
               <Info className="w-4 h-4 text-indigo-600 shrink-0" />
               <span className="font-semibold text-slate-800">
@@ -96,7 +96,7 @@ export default function AnalyticsPage() {
                 ● Mastery Index: Long-term multi-attempt consistency
               </span>
             </div>
-          </div>
+          </div> */}
 
           {/* High Level Key Metrics */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -286,13 +286,12 @@ export default function AnalyticsPage() {
                           {pred.topic}
                         </span>
                         <span
-                          className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                            pred.urgency === 'high'
-                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                              : pred.urgency === 'medium'
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded ${pred.urgency === 'high'
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                            : pred.urgency === 'medium'
                               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                               : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          }`}
+                            }`}
                         >
                           {pred.urgency === 'high' ? 'High Risk' : pred.urgency === 'medium' ? 'Moderate' : 'Stable'}
                         </span>
@@ -366,9 +365,8 @@ export default function AnalyticsPage() {
                           <span className="font-mono font-semibold">{tm.accuracy}%</span>
                           <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                             <div
-                              className={`h-full rounded-full ${
-                                tm.accuracy >= 75 ? 'bg-emerald-500' : tm.accuracy >= 55 ? 'bg-indigo-500' : 'bg-amber-500'
-                              }`}
+                              className={`h-full rounded-full ${tm.accuracy >= 75 ? 'bg-emerald-500' : tm.accuracy >= 55 ? 'bg-indigo-500' : 'bg-amber-500'
+                                }`}
                               style={{ width: `${tm.accuracy}%` }}
                             />
                           </div>

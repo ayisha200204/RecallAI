@@ -23,7 +23,7 @@ import confetti from 'canvas-confetti';
 import Sidebar from '../components/common/Sidebar';
 import Header from '../components/common/Header';
 import Badge from '../components/common/Badge';
-import ConfidenceSelector from '../components/common/ConfidenceSelector';
+// import ConfidenceSelector from '../components/common/ConfidenceSelector';
 import api from '../services/api';
 
 export default function PracticePage() {
@@ -214,7 +214,7 @@ export default function PracticePage() {
           topic: a.question.topic,
           isCorrect: a.isCorrect,
         })),
-      }).catch(() => {});
+      }).catch(() => { });
     }
   };
 
@@ -310,18 +310,16 @@ export default function PracticePage() {
                   <button
                     type="button"
                     onClick={() => setFeedbackMode('immediate')}
-                    className={`px-2.5 py-1 rounded-md font-bold transition-all ${
-                      feedbackMode === 'immediate' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500'
-                    }`}
+                    className={`px-2.5 py-1 rounded-md font-bold transition-all ${feedbackMode === 'immediate' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500'
+                      }`}
                   >
                     Immediate Feedback
                   </button>
                   <button
                     type="button"
                     onClick={() => setFeedbackMode('end_of_test')}
-                    className={`px-2.5 py-1 rounded-md font-bold transition-all ${
-                      feedbackMode === 'end_of_test' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500'
-                    }`}
+                    className={`px-2.5 py-1 rounded-md font-bold transition-all ${feedbackMode === 'end_of_test' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500'
+                      }`}
                   >
                     End of Test
                   </button>
@@ -330,9 +328,8 @@ export default function PracticePage() {
                 <button
                   type="button"
                   onClick={() => setTimedMode(!timedMode)}
-                  className={`px-2.5 py-1 rounded-lg border font-bold flex items-center gap-1 cursor-pointer ${
-                    timedMode ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-slate-200 text-slate-600'
-                  }`}
+                  className={`px-2.5 py-1 rounded-lg border font-bold flex items-center gap-1 cursor-pointer ${timedMode ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-slate-200 text-slate-600'
+                    }`}
                 >
                   <Clock className="w-3.5 h-3.5" />
                   <span>{timedMode ? `${timeRemaining}s` : 'Timer'}</span>
@@ -494,20 +491,19 @@ export default function PracticePage() {
                   )}
 
                   {/* Confidence Selector before submission */}
-                  {!isAnswerSubmitted && (
+                  {/* {!isAnswerSubmitted && (
                     <div className="pt-2 border-t border-slate-100">
                       <ConfidenceSelector value={confidence} onChange={setConfidence} />
                     </div>
-                  )}
+                  )} */}
 
                   {/* Immediate Feedback Explanation Panel */}
                   {isAnswerSubmitted && feedbackMode === 'immediate' && evaluationResult && (
                     <div
-                      className={`p-5 rounded-2xl border space-y-3 ${
-                        evaluationResult.isCorrect
+                      className={`p-5 rounded-2xl border space-y-3 ${evaluationResult.isCorrect
                           ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
                           : 'bg-amber-50/80 border-amber-200 text-amber-950'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-2 font-bold text-xs font-heading">
                         {evaluationResult.isCorrect ? (
@@ -665,11 +661,10 @@ export default function PracticePage() {
                   <button
                     type="button"
                     onClick={() => setShowOnlyIncorrect(!showOnlyIncorrect)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
-                      showOnlyIncorrect
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${showOnlyIncorrect
                         ? 'border-rose-300 bg-rose-50 text-rose-800'
                         : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
+                      }`}
                   >
                     {showOnlyIncorrect ? 'Showing Incorrect Only' : 'Show Only Incorrect Answers'}
                   </button>
@@ -679,9 +674,8 @@ export default function PracticePage() {
                   {reviewList.map((item, idx) => (
                     <div
                       key={idx}
-                      className={`p-5 rounded-2xl border space-y-3 ${
-                        item.isCorrect ? 'border-slate-200 bg-slate-50/50' : 'border-rose-200 bg-rose-50/30'
-                      }`}
+                      className={`p-5 rounded-2xl border space-y-3 ${item.isCorrect ? 'border-slate-200 bg-slate-50/50' : 'border-rose-200 bg-rose-50/30'
+                        }`}
                     >
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
