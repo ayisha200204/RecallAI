@@ -100,8 +100,8 @@ export async function getDeckStudySession(req, res) {
       const previews = getRatingIntervalPreviews(card, now);
       const isDue = Boolean(
         !card.repetitions ||
-          card.repetitions === 0 ||
-          (card.nextDueDate && new Date(card.nextDueDate) <= endOfToday)
+        card.repetitions === 0 ||
+        (card.nextDueDate && new Date(card.nextDueDate) <= endOfToday)
       );
       return {
         ...card,

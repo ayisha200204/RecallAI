@@ -179,13 +179,12 @@ export default function ReviewCalendarPage() {
                       key={day.date}
                       type="button"
                       onClick={() => setSelectedDayIndex(idx)}
-                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[96px] ${
-                        isSelected
+                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[96px] ${isSelected
                           ? 'border-indigo-600 bg-indigo-50/70 shadow-xs ring-2 ring-indigo-600/20'
                           : day.isToday
-                          ? 'border-indigo-200 bg-indigo-50/30 hover:border-indigo-400'
-                          : 'border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300'
-                      }`}
+                            ? 'border-indigo-200 bg-indigo-50/30 hover:border-indigo-400'
+                            : 'border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300'
+                        }`}
                     >
                       <div className="flex items-center justify-between w-full">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -200,13 +199,12 @@ export default function ReviewCalendarPage() {
 
                       <div className="my-auto py-1">
                         <span
-                          className={`text-xl font-extrabold font-heading ${
-                            hasDue
+                          className={`text-xl font-extrabold font-heading ${hasDue
                               ? day.isToday
                                 ? 'text-indigo-600'
                                 : 'text-slate-800'
                               : 'text-slate-300'
-                          }`}
+                            }`}
                         >
                           {day.count}
                         </span>

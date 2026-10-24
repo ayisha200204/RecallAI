@@ -150,8 +150,21 @@ export async function generateContent(req, res) {
       generationMode: result.generationMode,
     });
   } catch (err) {
-    console.error('Generate content error:', err);
-    res.status(500).json({ error: 'Failed to generate study materials.' });
+    console.error('Generate content error:', err.message);
+    // Surface AI-specific errors as 503 (service unavailable) so the frontend can distinguish them
+    const isAiError =
+      err.message?.includes('AI generation failed') ||
+      err.message?.includes('No AI provider') ||
+      err.message?.includes('timed out') ||
+      err.message?.includes('API key') ||
+      err.message?.includes('quota') ||
+      err.message?.includes('rate limit');
+    const status = isAiError ? 503 : 500;
+    res.status(status).json({
+      error: isAiError
+        ? err.message
+        : 'Failed to generate study materials. Please try again.',
+    });
   }
 }
 
